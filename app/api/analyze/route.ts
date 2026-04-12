@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
     if (sbUrl.startsWith('https://') && sbKey.length > 20 && (result.verdict === 'fabricated' || result.verdict === 'weak')) {
       try {
         const { createClient } = await import('@supabase/supabase-js')
-        const sb = createClient(sbUrl, sbKey)
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || sbKey
+        const sb = createClient(sbUrl, serviceKey)
         await sb.from('flagged_posts').insert({
           post_text: result.extracted_text || postText,
           verdict: result.verdict,
