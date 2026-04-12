@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { sendAlerts } from '@/lib/alerts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences (Mustalah al-Hadith). 
+const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences (Mustalah al-Hadith).
 
 When given an image, first extract ALL text visible in the image, then analyze it.
 When given text, analyze it directly.
@@ -32,13 +33,11 @@ export async function POST(req: NextRequest) {
     let imageBase64 = ''
     let imageMediaType = ''
 
-    // Handle both JSON (text) and FormData (image upload)
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData()
       postText = formData.get('postText') as string || ''
       lang = formData.get('lang') as string || 'en'
       const imageFile = formData.get('image') as File | null
-
       if (imageFile) {
         const bytes = await imageFile.arrayBuffer()
         imageBase64 = Buffer.from(bytes).toString('base64')
@@ -61,7 +60,7 @@ export async function POST(req: NextRequest) {
       "Write the suggested_comment field in English."
 
     const jsonTemplate = `{
-  "extracted_text": "if image provided, paste ALL text you read from the image here, otherwise empty string",
+  "extracted_text": "if image provided, paste ALL text from image here, otherwise empty string",
   "verdict": "fabricated",
   "confidence": "high",
   "claim_summary": "one sentence describing the hadith claim in English",
@@ -76,36 +75,25 @@ export async function POST(req: NextRequest) {
       "authority": "tier1"
     }
   ],
-  "suggested_comment": "THIS MUST BE IN THE LANGUAGE SPECIFIED. Compassionate social media comment with: Islamic greeting, gentle correction without shaming, authentic ruling, direct URL from sunnah.com or islamqa.info, dua closing."
+  "suggested_comment": "compassionate social media comment with Islamic greeting, gentle correction, authentic ruling, direct URL, dua closing"
 }`
 
-    // Build message content based on whether image or text was provided
     let messageContent: any[]
 
     if (imageBase64) {
       messageContent = [
         {
           type: 'image',
-          source: {
-            type: 'base64',
-            media_type: imageMediaType,
-            data: imageBase64,
-          },
+          source: { type: 'base64', media_type: imageMediaType, data: imageBase64 }
         },
         {
           type: 'text',
-          text: `Please analyze this social media post image for fabricated hadiths.
-
-First extract ALL the text you can see in the image.
-Then analyze it for fabricated or weak hadiths.
-
+          text: `Analyze this social media post image for fabricated hadiths.
+Extract ALL visible text first, then analyze.
 ${langInstruction}
-
-${postText ? `Additional context from user: ${postText}` : ''}
-
+${postText ? `Additional context: ${postText}` : ''}
 Reply with ONLY this JSON (no markdown):
 ${jsonTemplate}
-
 verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
         }
       ]
@@ -114,16 +102,12 @@ verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
         {
           type: 'text',
           text: `Analyze this social media post for fabricated hadiths:
-
 """
 ${postText}
 """
-
 ${langInstruction}
-
 Reply with ONLY this JSON (no markdown):
 ${jsonTemplate}
-
 verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
         }
       ]
@@ -141,7 +125,6 @@ verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
     try {
       result = JSON.parse(raw.replace(/```json|```/g, '').trim())
     } catch {
-      console.error('Parse error, raw:', raw.substring(0, 200))
       return NextResponse.json({ error: 'Parse error' }, { status: 500 })
     }
 
@@ -166,6 +149,23 @@ verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
         })
       } catch (e) { console.log('Supabase skipped:', e) }
     }
+
+    // Send Slack + Telegram alerts for fabricated/weak posts
+    if (result.verdict === 'fabricated' || result.verdict === 'weak') {
+      console.log('SLACK_WEBHOOK_URL exists:', !!process.env.SLACK_WEBHOOK_URL)
+      console.log('Sending alert for verdict:', result.verdict)
+      const slackUrl = process.env.SLACK_WEBHOOK_URL
+      console.log('Direct slack URL exists:', !!slackUrl)
+      if (slackUrl) {
+        fetch(slackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: `🚨 *Fabricated hadith detected*\n*Claim:* ${result.claim_summary}\n*Confidence:* ${result.confidence}\n*Comment ready in ${lang.toUpperCase()}*` 
+          })
+        }).then(r => console.log('Slack response status:', r.status))
+          .catch(e => console.log('Slack fetch error:', e))
+      }
 
     return NextResponse.json(result)
 
