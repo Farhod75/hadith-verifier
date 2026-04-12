@@ -8,6 +8,8 @@ export type FlaggedPost = {
   suggested_comment: string
   lang: string
   sources: object[]
+  red_flags: string[]        // ← ADD
+  severity: string           // ← ADD
   reviewed: boolean
   created_at?: string
 }
