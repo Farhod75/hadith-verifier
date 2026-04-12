@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 60000,
 
@@ -17,7 +17,6 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'on-first-retry',
   },
 
   projects: [
@@ -31,7 +30,7 @@ export default defineConfig({
     },
   ],
 
-  // Auto-start dev server for local testing
+  // Only start dev server locally, not in CI (CI starts it manually)
   webServer: process.env.CI ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:3000',
