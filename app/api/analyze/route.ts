@@ -1,29 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { sendAlerts } from '@/lib/alerts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences (Mustalah al-Hadith).
-
-When given an image, first extract ALL text visible in the image, then analyze it.
-When given text, analyze it directly.
-
-Analyze for fabricated or weak hadiths attributed to Prophet Muhammad ﷺ.
-
-Key fabrication red flags:
-- Specific large reward numbers not in authentic collections (4000 days, 70000 angels)
-- Formula: Read Surah X Y times = Z reward without isnad
-- Chain message pressure like share with 10 people
-- Disproportionate rewards for trivial acts
-- No reference to any collection or narrator chain
-- Guaranteed paradise for simple actions
-
-Source priority: Dorar.net → Sunnah.com → IslamQA.info → HadeethEnc.com
-
-Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON.`
+const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences. When given an image, extract ALL text visible then analyze it. When given text, analyze directly. Analyze for fabricated or weak hadiths attributed to Prophet Muhammad. Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,62 +36,23 @@ export async function POST(req: NextRequest) {
     }
 
     const langInstruction =
-      lang === 'uz' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Uzbek language. Every single word must be in Uzbek (O'zbek tilida yozing)." :
-      lang === 'ar' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Arabic language. Every word must be in Arabic." :
-      lang === 'ru' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Russian language. Every word must be in Russian." :
+      lang === 'uz' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Uzbek language. Every single word must be in Uzbek." :
+      lang === 'ar' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Arabic language." :
+      lang === 'ru' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Russian language." :
       "Write the suggested_comment field in English."
 
-    const jsonTemplate = `{
-  "extracted_text": "if image provided, paste ALL text from image here, otherwise empty string",
-  "verdict": "fabricated",
-  "confidence": "high",
-  "claim_summary": "one sentence describing the hadith claim in English",
-  "red_flags": ["specific red flag 1", "specific red flag 2"],
-  "analysis": "2-3 sentences of scholarly analysis in English",
-  "authentic_alternative": "what authentic sources say on this topic",
-  "references": [
-    {
-      "source": "Sunnah.com",
-      "description": "relevant authentic hadith",
-      "url": "https://sunnah.com/bukhari:5013",
-      "authority": "tier1"
-    }
-  ],
-  "suggested_comment": "compassionate social media comment with Islamic greeting, gentle correction, authentic ruling, direct URL, dua closing"
-}`
+    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith","url":"https://sunnah.com/bukhari:5013","authority":"tier1"}],"suggested_comment":"compassionate reply with greeting correction source URL dua closing"}`
 
     let messageContent: any[]
 
     if (imageBase64) {
       messageContent = [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: imageMediaType, data: imageBase64 }
-        },
-        {
-          type: 'text',
-          text: `Analyze this social media post image for fabricated hadiths.
-Extract ALL visible text first, then analyze.
-${langInstruction}
-${postText ? `Additional context: ${postText}` : ''}
-Reply with ONLY this JSON (no markdown):
-${jsonTemplate}
-verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
-        }
+        { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
+        { type: 'text', text: `Analyze this social media post image for fabricated hadiths. Extract ALL visible text first then analyze.\n${langInstruction}\n${postText ? `Additional context: ${postText}` : ''}\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
       ]
     } else {
       messageContent = [
-        {
-          type: 'text',
-          text: `Analyze this social media post for fabricated hadiths:
-"""
-${postText}
-"""
-${langInstruction}
-Reply with ONLY this JSON (no markdown):
-${jsonTemplate}
-verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
-        }
+        { type: 'text', text: `Analyze this post for fabricated hadiths:\n"""\n${postText}\n"""\n${langInstruction}\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
       ]
     }
 
@@ -131,8 +74,7 @@ verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
     // Save to Supabase if configured
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    if (sbUrl.startsWith('https://') && sbKey.length > 20 &&
-      (result.verdict === 'fabricated' || result.verdict === 'weak')) {
+    if (sbUrl.startsWith('https://') && sbKey.length > 20 && (result.verdict === 'fabricated' || result.verdict === 'weak')) {
       try {
         const { createClient } = await import('@supabase/supabase-js')
         const sb = createClient(sbUrl, sbKey)
@@ -150,30 +92,37 @@ verdict must be one of: fabricated, weak, authentic, unclear, no_hadith`
       } catch (e) { console.log('Supabase skipped:', e) }
     }
 
-    // Send Slack + Telegram alerts for fabricated/weak posts
+    // Send Slack alert if configured
     if (result.verdict === 'fabricated' || result.verdict === 'weak') {
-      console.log('SLACK_WEBHOOK_URL exists:', !!process.env.SLACK_WEBHOOK_URL)
-      console.log('Sending alert for verdict:', result.verdict)
       const slackUrl = process.env.SLACK_WEBHOOK_URL
-      console.log('Direct slack URL exists:', !!slackUrl)
-      if (slackUrl) {
+      if (slackUrl && slackUrl.startsWith('https://hooks.slack.com')) {
+        const verdictEmoji = result.verdict === 'fabricated' ? '🚨' : '⚠️'
+        const slackBody = {
+          blocks: [
+            { type: 'header', text: { type: 'plain_text', text: `${verdictEmoji} ${result.verdict.toUpperCase()} HADITH DETECTED`, emoji: true } },
+            { type: 'section', fields: [
+              { type: 'mrkdwn', text: `*Verdict:* ${result.verdict}` },
+              { type: 'mrkdwn', text: `*Confidence:* ${result.confidence}` }
+            ]},
+            { type: 'section', text: { type: 'mrkdwn', text: `*Claim:*\n${result.claim_summary}` } },
+            { type: 'section', text: { type: 'mrkdwn', text: `*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}` } },
+            { type: 'section', text: { type: 'mrkdwn', text: `*Ready-to-post comment (${lang.toUpperCase()}):*\n\`\`\`${result.suggested_comment?.slice(0, 300)}\`\`\`` } },
+            { type: 'context', elements: [{ type: 'mrkdwn', text: '⚠️ AI flags — human admin decides action' }] }
+          ]
+        }
         fetch(slackUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            text: `🚨 *Fabricated hadith detected*\n*Claim:* ${result.claim_summary}\n*Confidence:* ${result.confidence}\n*Comment ready in ${lang.toUpperCase()}*` 
-          })
-        }).then(r => console.log('Slack response status:', r.status))
-          .catch(e => console.log('Slack fetch error:', e))
+          body: JSON.stringify(slackBody)
+        }).then(r => console.log('Slack alert sent:', r.status))
+          .catch(e => console.log('Slack error:', e))
       }
+    }
 
     return NextResponse.json(result)
 
   } catch (error: any) {
     console.error('Error:', error?.message)
-    return NextResponse.json(
-      { error: 'Analysis failed: ' + (error?.message || 'unknown') },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Analysis failed: ' + (error?.message || 'unknown') }, { status: 500 })
   }
 }
