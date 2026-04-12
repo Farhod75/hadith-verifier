@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { calculateSeverity } from '@/lib/severity'
+import { sendAlerts } from '@/lib/alerts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -67,6 +69,13 @@ export async function POST(req: NextRequest) {
     let result
     try {
       result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      // Calculate severity score
+      const severity = calculateSeverity(
+        result.verdict,
+        result.confidence,
+        result.red_flags ?? []
+      )
+      result.severity = severity
     } catch {
       return NextResponse.json({ error: 'Parse error' }, { status: 500 })
     }
@@ -87,37 +96,28 @@ export async function POST(req: NextRequest) {
           suggested_comment: result.suggested_comment,
           lang,
           sources: result.references || [],
+          red_flags: result.red_flags || [],      // ← ADD THIS LINE
+          severity: result.severity || 'MEDIUM',  // ← ADD THIS LINE
           reviewed: false
         })
       } catch (e) { console.log('Supabase skipped:', e) }
     }
 
-    // Send Slack alert if configured
+    // Send Slack + Telegram alerts
     if (result.verdict === 'fabricated' || result.verdict === 'weak') {
-      const slackUrl = process.env.SLACK_WEBHOOK_URL
-      if (slackUrl && slackUrl.startsWith('https://hooks.slack.com')) {
-        const verdictEmoji = result.verdict === 'fabricated' ? '🚨' : '⚠️'
-        const slackBody = {
-          blocks: [
-            { type: 'header', text: { type: 'plain_text', text: `${verdictEmoji} ${result.verdict.toUpperCase()} HADITH DETECTED`, emoji: true } },
-            { type: 'section', fields: [
-              { type: 'mrkdwn', text: `*Verdict:* ${result.verdict}` },
-              { type: 'mrkdwn', text: `*Confidence:* ${result.confidence}` }
-            ]},
-            { type: 'section', text: { type: 'mrkdwn', text: `*Claim:*\n${result.claim_summary}` } },
-            { type: 'section', text: { type: 'mrkdwn', text: `*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}` } },
-            { type: 'section', text: { type: 'mrkdwn', text: `*Ready-to-post comment (${lang.toUpperCase()}):*\n\`\`\`${result.suggested_comment?.slice(0, 300)}\`\`\`` } },
-            { type: 'context', elements: [{ type: 'mrkdwn', text: '⚠️ AI flags — human admin decides action' }] }
-          ]
-        }
-        fetch(slackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(slackBody)
-        }).then(r => console.log('Slack alert sent:', r.status))
-          .catch(e => console.log('Slack error:', e))
-      }
-    }
+       await sendAlerts({
+          verdict: result.verdict,
+          confidence: result.confidence,
+          claim_summary: result.claim_summary,
+          red_flags: result.red_flags || [],
+          analysis: result.analysis,
+          authentic_alternative: result.authentic_alternative || '',
+          suggested_comment: result.suggested_comment,
+          references: result.references || [],
+          lang,
+          post_text: postText
+  })
+}
 
     return NextResponse.json(result)
 
