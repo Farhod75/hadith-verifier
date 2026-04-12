@@ -11,9 +11,11 @@ test.describe('UI — Page loads correctly', () => {
 
   test('should show stats panel on load', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('Checked')).toBeVisible()
-    await expect(page.getByText('Flagged')).toBeVisible()
-    await expect(page.getByText('Authentic')).toBeVisible()
+    // Stats are hidden on mobile (sm:flex) - set desktop viewport to test
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await expect(page.locator('header').getByText('Checked').first()).toBeVisible()
+    await expect(page.locator('header').getByText('Flagged').first()).toBeVisible()
+    await expect(page.locator('header').getByText('Authentic').first()).toBeVisible()
   })
 
   test('should show paste text and upload screenshot buttons', async ({ page }) => {
