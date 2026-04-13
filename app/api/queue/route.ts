@@ -10,19 +10,32 @@ function getSupabase() {
 
 export async function GET() {
   try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'MISSING'
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'MISSING'
+    
+    console.log('URL:', url.substring(0, 30))
+    console.log('KEY length:', key.length)
+    
     const supabase = getSupabase()
     if (!supabase) {
+      console.log('Supabase client failed to create')
       return NextResponse.json([])
     }
-    const { data, error } = await supabase
+
+    const { data, error, count } = await supabase
       .from('flagged_posts')
-      .select('*')
-      .eq('reviewed', false)
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .limit(50)
+
+    console.log('Count:', count)
+    console.log('Error:', error)
+    console.log('Data length:', data?.length)
+
     if (error) throw error
     return NextResponse.json(data || [])
   } catch (error) {
+    console.error('Queue GET error:', error)
     return NextResponse.json([])
   }
 }
