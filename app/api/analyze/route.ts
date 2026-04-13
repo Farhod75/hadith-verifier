@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-// Inline severity calculation — no external import needed
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
 function calculateSeverity(verdict: string, confidence: string, redFlags: string[]): string {
   if (verdict === 'fabricated' && confidence === 'high' && redFlags.length >= 2) return 'CRITICAL'
   if ((verdict === 'fabricated' || verdict === 'weak') && confidence === 'high') return 'HIGH'
@@ -11,9 +13,44 @@ function calculateSeverity(verdict: string, confidence: string, redFlags: string
   return 'LOW'
 }
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
+async function sendAlerts(result: any, lang: string, postText: string) {
+  const verdictEmoji = result.verdict === 'fabricated' ? '🚨' : '⚠️'
+
+  // Slack
+  const slackUrl = process.env.SLACK_WEBHOOK_URL
+  if (slackUrl?.startsWith('https://hooks.slack.com')) {
+    fetch(slackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        blocks: [
+          { type: 'header', text: { type: 'plain_text', text: `${verdictEmoji} ${result.verdict.toUpperCase()} HADITH DETECTED`, emoji: true }},
+          { type: 'section', fields: [
+            { type: 'mrkdwn', text: `*Verdict:* ${result.verdict}` },
+            { type: 'mrkdwn', text: `*Confidence:* ${result.confidence}` },
+            { type: 'mrkdwn', text: `*Severity:* ${result.severity}` },
+          ]},
+          { type: 'section', text: { type: 'mrkdwn', text: `*Claim:*\n${result.claim_summary}` }},
+          { type: 'section', text: { type: 'mrkdwn', text: `*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}` }},
+          { type: 'section', text: { type: 'mrkdwn', text: `*Comment (${lang.toUpperCase()}):*\n\`\`\`${result.suggested_comment?.slice(0, 300)}\`\`\`` }},
+          { type: 'context', elements: [{ type: 'mrkdwn', text: '⚠️ AI flags — human admin decides action' }]}
+        ]
+      })
+    }).catch(e => console.log('Slack error:', e))
+  }
+
+  // Telegram
+  const tgToken = process.env.TELEGRAM_ALERT_BOT_TOKEN
+  const tgChat = process.env.TELEGRAM_ALERT_CHAT_ID
+  if (tgToken && tgChat) {
+    const msg = `${verdictEmoji} *${result.verdict.toUpperCase()}* — ${result.severity}\n\n*Claim:* ${result.claim_summary}\n\n*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}\n\n_AI flags — human admin decides_`
+    fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tgChat, text: msg, parse_mode: 'Markdown' })
+    }).catch(e => console.log('Telegram error:', e))
+  }
+}
 
 const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences. When given an image, extract ALL text visible then analyze it. When given text, analyze directly. Analyze for fabricated or weak hadiths attributed to Prophet Muhammad. Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON.`
 
@@ -47,14 +84,13 @@ export async function POST(req: NextRequest) {
 
     const langInstruction =
       lang === 'uz' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Uzbek language. Every single word must be in Uzbek." :
-      lang === 'ar' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Arabic language." :
-      lang === 'ru' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Russian language." :
+      lang === 'ar' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Arabic language. Use Arabic script." :
+      lang === 'ru' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Russian language. Use Cyrillic script." :
       "Write the suggested_comment field in English."
 
     const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith","url":"https://sunnah.com/bukhari:5013","authority":"tier1"}],"suggested_comment":"compassionate reply with greeting correction source URL dua closing"}`
 
     let messageContent: any[]
-
     if (imageBase64) {
       messageContent = [
         { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
@@ -77,24 +113,21 @@ export async function POST(req: NextRequest) {
     let result
     try {
       result = JSON.parse(raw.replace(/```json|```/g, '').trim())
-      // Calculate severity score
-      const severity = calculateSeverity(
-        result.verdict,
-        result.confidence,
-        result.red_flags ?? []
-      )
-      result.severity = severity
     } catch {
       return NextResponse.json({ error: 'Parse error' }, { status: 500 })
     }
 
-    // Save to Supabase if configured
+    // Calculate severity
+    const severity = calculateSeverity(result.verdict, result.confidence, result.red_flags ?? [])
+    result.severity = severity
+
+    // Save to Supabase
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
     const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || sbKey
     if (sbUrl.startsWith('https://') && sbKey.length > 20 && (result.verdict === 'fabricated' || result.verdict === 'weak')) {
       try {
         const { createClient } = await import('@supabase/supabase-js')
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || sbKey
         const sb = createClient(sbUrl, serviceKey)
         await sb.from('flagged_posts').insert({
           post_text: result.extracted_text || postText,
@@ -105,41 +138,17 @@ export async function POST(req: NextRequest) {
           suggested_comment: result.suggested_comment,
           lang,
           sources: result.references || [],
-          red_flags: result.red_flags || [],      // ← ADD THIS LINE
-          severity: result.severity || 'MEDIUM',  // ← ADD THIS LINE
+          red_flags: result.red_flags || [],
+          severity: result.severity || 'MEDIUM',
           reviewed: false
         })
       } catch (e) { console.log('Supabase skipped:', e) }
     }
 
-    // Inline alerts — no external import needed
-if (result.verdict === 'fabricated' || result.verdict === 'weak') {
-  const verdictEmoji = result.verdict === 'fabricated' ? '🚨' : '⚠️'
-  
-  // Slack
-  const slackUrl = process.env.SLACK_WEBHOOK_URL
-  if (slackUrl?.startsWith('https://hooks.slack.com')) {
-    fetch(slackUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: `${verdictEmoji} *${result.verdict.toUpperCase()}* hadith detected — Severity: *${result.severity}*\n*Claim:* ${result.claim_summary}`
-      })
-    }).catch(e => console.log('Slack error:', e))
-  }
-
-  // Telegram
-  const tgToken = process.env.TELEGRAM_ALERT_BOT_TOKEN
-  const tgChat = process.env.TELEGRAM_ALERT_CHAT_ID
-  if (tgToken && tgChat) {
-    const msg = `${verdictEmoji} *${result.verdict.toUpperCase()}* — ${result.severity}\n\n*Claim:* ${result.claim_summary}\n\n*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}\n\n_AI flags — human admin decides_`
-    fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: tgChat, text: msg, parse_mode: 'Markdown' })
-    }).catch(e => console.log('Telegram error:', e))
-  }
-}
+    // Send alerts
+    if (result.verdict === 'fabricated' || result.verdict === 'weak') {
+      await sendAlerts(result, lang, postText)
+    }
 
     return NextResponse.json(result)
 
