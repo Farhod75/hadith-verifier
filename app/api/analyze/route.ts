@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { calculateSeverity } from '@/lib/severity'
-import { sendAlerts } from '@/lib/alerts'
+// Inline severity calculation — no external import needed
+function calculateSeverity(verdict: string, confidence: string, redFlags: string[]): string {
+  if (verdict === 'fabricated' && confidence === 'high' && redFlags.length >= 2) return 'CRITICAL'
+  if ((verdict === 'fabricated' || verdict === 'weak') && confidence === 'high') return 'HIGH'
+  if (verdict === 'fabricated' && redFlags.some((f: string) =>
+    f.toLowerCase().includes('chain') || f.toLowerCase().includes('share')
+  )) return 'HIGH'
+  if (verdict === 'weak' || verdict === 'unclear') return 'MEDIUM'
+  return 'LOW'
+}
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -104,20 +112,33 @@ export async function POST(req: NextRequest) {
       } catch (e) { console.log('Supabase skipped:', e) }
     }
 
-    // Send Slack + Telegram alerts
-    if (result.verdict === 'fabricated' || result.verdict === 'weak') {
-       await sendAlerts({
-          verdict: result.verdict,
-          confidence: result.confidence,
-          claim_summary: result.claim_summary,
-          red_flags: result.red_flags || [],
-          analysis: result.analysis,
-          authentic_alternative: result.authentic_alternative || '',
-          suggested_comment: result.suggested_comment,
-          references: result.references || [],
-          lang,
-          post_text: postText
-  })
+    // Inline alerts — no external import needed
+if (result.verdict === 'fabricated' || result.verdict === 'weak') {
+  const verdictEmoji = result.verdict === 'fabricated' ? '🚨' : '⚠️'
+  
+  // Slack
+  const slackUrl = process.env.SLACK_WEBHOOK_URL
+  if (slackUrl?.startsWith('https://hooks.slack.com')) {
+    fetch(slackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: `${verdictEmoji} *${result.verdict.toUpperCase()}* hadith detected — Severity: *${result.severity}*\n*Claim:* ${result.claim_summary}`
+      })
+    }).catch(e => console.log('Slack error:', e))
+  }
+
+  // Telegram
+  const tgToken = process.env.TELEGRAM_ALERT_BOT_TOKEN
+  const tgChat = process.env.TELEGRAM_ALERT_CHAT_ID
+  if (tgToken && tgChat) {
+    const msg = `${verdictEmoji} *${result.verdict.toUpperCase()}* — ${result.severity}\n\n*Claim:* ${result.claim_summary}\n\n*Red flags:*\n${(result.red_flags || []).slice(0, 3).map((f: string) => `• ${f}`).join('\n')}\n\n_AI flags — human admin decides_`
+    fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: tgChat, text: msg, parse_mode: 'Markdown' })
+    }).catch(e => console.log('Telegram error:', e))
+  }
 }
 
     return NextResponse.json(result)
