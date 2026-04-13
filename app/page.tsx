@@ -22,8 +22,9 @@ interface DuaResult {
   suggested_comment: { uz_latin: string; uz_cyrillic: string; ru: string; en: string }
 }
 interface QueueItem {
-  id: string; post_text: string; verdict: string; claim_summary: string
-  suggested_comment: string; lang: string; created_at: string
+  id: string; post_text: string; verdict: string; confidence: string
+  claim_summary: string; suggested_comment: string; lang: string
+  created_at: string; severity: string; red_flags: string[]
 }
 
 const EXAMPLES = {
@@ -45,6 +46,10 @@ const VERDICT_STYLE = {
   no_hadith: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', badge: 'bg-gray-100 text-gray-700' },
 }
 const TIER_STYLE = {
+  CRITICAL: { badge: 'bg-red-600 text-white', icon: '🔴' },
+  HIGH:     { badge: 'bg-orange-500 text-white', icon: '🟠' },
+  MEDIUM:   { badge: 'bg-yellow-400 text-gray-900', icon: '🟡' },
+  LOW:      { badge: 'bg-green-500 text-white', icon: '🟢' },
   tier1: { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-800' },
   tier2: { dot: 'bg-blue-500', badge: 'bg-blue-50 text-blue-800' },
   tier3: { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-800' },
@@ -536,28 +541,103 @@ export default function Home() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">{tr.flaggedPostsQueue}</div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {tr.flaggedPostsQueue}
+                  {queue.length > 0 && (
+                    <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                      {queue.length}
+                    </span>
+                  )}
+                </div>
                 <button onClick={fetchQueue} className="text-xs text-emerald-600 hover:underline">{tr.refresh}</button>
               </div>
-              {queueLoading && <div className="text-sm text-gray-400 py-4 text-center">...</div>}
-              {!queueLoading && queue.length === 0 && <div className="text-sm text-gray-400 py-8 text-center">{tr.noFlaggedPosts}</div>}
-              {queue.map(item => (
-                <div key={item.id} className="flex gap-3 py-3 border-b border-gray-100 last:border-0">
-                  <span className={`text-xs px-2 py-1 rounded-full h-fit flex-shrink-0 ${item.verdict === 'fabricated' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{item.verdict}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-gray-700 line-clamp-2">{item.claim_summary || item.post_text?.slice(0, 100)}</div>
-                    <div className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleDateString()} · {item.lang?.toUpperCase()}</div>
-                  </div>
-                  <div className="flex flex-col gap-1 flex-shrink-0">
-                    <button onClick={() => { navigator.clipboard.writeText(item.suggested_comment); alert(tr.copied) }}
-                      className="text-xs px-3 py-1 rounded border border-green-200 bg-green-50 text-green-700">{tr.copyBtn}</button>
-                    <button onClick={() => alert(tr.reportInstruction)}
-                      className="text-xs px-3 py-1 rounded border border-red-200 bg-red-50 text-red-700">{tr.reportBtn}</button>
-                    <button onClick={async () => { await fetch('/api/queue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) }); setQueue(q => q.filter(i => i.id !== item.id)) }}
-                      className="text-xs px-3 py-1 rounded border border-gray-200 text-gray-500">{tr.dismissBtn}</button>
-                  </div>
+
+              {queueLoading && (
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <span className="w-4 h-4 border-2 border-emerald-500/40 border-t-emerald-500 rounded-full animate-spin" />
+                  <span className="text-sm text-gray-400">Loading...</span>
                 </div>
-              ))}
+              )}
+
+              {!queueLoading && queue.length === 0 && (
+                <div className="text-sm text-gray-400 py-8 text-center">{tr.noFlaggedPosts}</div>
+              )}
+
+              <div className="space-y-3">
+                {queue.map(item => {
+                  const sev = item.severity || 'MEDIUM'
+                  const ss = SEVERITY_STYLE[sev as keyof typeof SEVERITY_STYLE] || SEVERITY_STYLE.MEDIUM
+                  return (
+                    <div key={item.id} className="border border-gray-100 rounded-xl p-4 bg-gray-50 hover:bg-white transition-colors">
+                      {/* Header row */}
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ss.badge}`}>
+                          {ss.icon} {sev}
+                        </span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${item.verdict === 'fabricated' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {item.verdict}
+                        </span>
+                        {item.confidence && (
+                          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                            {item.confidence} confidence
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400 ml-auto">
+                          {new Date(item.created_at).toLocaleDateString()} · {item.lang?.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Claim */}
+                      <div className="text-sm font-medium text-gray-800 mb-2">
+                        {item.claim_summary || item.post_text?.slice(0, 120)}
+                      </div>
+
+                      {/* Red flags */}
+                      {item.red_flags?.length > 0 && (
+                        <div className="mb-3">
+                          <div className="text-xs text-gray-400 mb-1">Red flags:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {item.red_flags.slice(0, 3).map((f, i) => (
+                              <span key={i} className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full border border-red-100">
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Suggested comment preview */}
+                      {item.suggested_comment && (
+                        <div className="text-xs text-gray-500 bg-white rounded-lg p-2 border border-gray-100 mb-3 line-clamp-2" dir="auto">
+                          {item.suggested_comment}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(item.suggested_comment); alert(tr.copied) }}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 font-medium">
+                          📋 {tr.copyBtn}
+                        </button>
+                        <button
+                          onClick={() => alert(tr.reportInstruction)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
+                          🚩 {tr.reportBtn}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/queue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+                            setQueue(q => q.filter(i => i.id !== item.id))
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100">
+                          ✓ {tr.dismissBtn}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">{tr.adminPolicy}</div>
           </div>

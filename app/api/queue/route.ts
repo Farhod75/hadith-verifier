@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   if (!url.startsWith('https://') || key.length < 20) return null
   const { createClient } = require('@supabase/supabase-js')
   return createClient(url, key)
