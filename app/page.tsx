@@ -45,6 +45,12 @@ const VERDICT_STYLE = {
   unclear: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', badge: 'bg-gray-100 text-gray-700' },
   no_hadith: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', badge: 'bg-gray-100 text-gray-700' },
 }
+const SEVERITY_STYLE = {
+  CRITICAL: { badge: 'bg-red-600 text-white', icon: '🔴' },
+  HIGH:     { badge: 'bg-orange-500 text-white', icon: '🟠' },
+  MEDIUM:   { badge: 'bg-yellow-400 text-gray-900', icon: '🟡' },
+  LOW:      { badge: 'bg-green-500 text-white', icon: '🟢' },
+} as const
 const TIER_STYLE = {
   CRITICAL: { badge: 'bg-red-600 text-white', icon: '🔴' },
   HIGH:     { badge: 'bg-orange-500 text-white', icon: '🟠' },
@@ -308,7 +314,7 @@ export default function Home() {
                       <>
                         <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.verifiedSources}</div>
                         {result.references.map((ref, i) => {
-                          const ts = TIER_STYLE[ref.authority as keyof typeof TIER_STYLE] || TIER_STYLE.tier3
+                          const ts = (TIER_STYLE[ref.authority as keyof typeof TIER_STYLE] || TIER_STYLE.tier3) as { dot: string; badge: string }
                           return (
                             <div key={i} className="flex gap-2 py-2 border-b border-gray-100 last:border-0">
                               <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${ts.dot}`} />
