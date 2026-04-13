@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { calculateSeverity } from '../../lib/severity'
-import { sendAlerts } from '../../lib/alerts'
+import { calculateSeverity } from '../../../lib/severity'
+import { sendAlerts } from '../../../lib/alerts'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
