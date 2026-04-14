@@ -18,6 +18,16 @@ and open the gates of Jannah. Don't break the chain! Share NOW! 🕌`,
 
   russian: `Пророк ﷺ сказал: Кто прочитает суру Аль-Фатиха 4 раза перед сном,
 тому запишется награда 4000 дней садака. Перешли 10 людям!`,
+
+  english: `The Prophet Muhammad (PBUH) said: "Whoever says SubhanAllah 
+1000 times every morning will have all their sins forgiven and 
+receive the reward of freeing 70 slaves." 
+Forward to all your Muslim brothers and sisters!`,
+
+  high_confidence: `Hadith: If you read Surah Fatiha 40 times after Fajr prayer,
+Allah will forgive all your sins for 40 years and grant you 
+complete shifa from all diseases. This was narrated by all 
+4 major schools of thought. Share immediately!`,
 }
 
 export const AUTHENTIC_POSTS = {
@@ -31,6 +41,9 @@ one-third of the Quran. — Sahih al-Bukhari 5013`,
   intentions: `The Prophet ﷺ said: "Actions are judged by intentions, 
 and every person will get what they intended." 
 — Sahih al-Bukhari 1, Sahih Muslim 1907`,
+
+  no_hadith: `Assalamu Alaikum everyone! Hope you are all having a blessed Friday. 
+Please remember your brothers and sisters in your duas today.`,
 }
 
 export const RED_FLAGS = {
@@ -53,4 +66,30 @@ export const VALID_SOURCE_DOMAINS = [
   'hadeethenc.com',
   'islamweb.net',
   'yaqeeninstitute.org',
+  'islamhouse.com',
 ]
+
+export const SEVERITY_RULES = {
+  fabricated_high: 'CRITICAL',
+  fabricated_medium: 'HIGH',
+  weak_high: 'HIGH',
+  weak_medium: 'MEDIUM',
+  authentic: 'LOW',
+  no_hadith: 'LOW',
+  unclear: 'MEDIUM',
+} as const
+
+export type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
+export type Confidence = 'high' | 'medium' | 'low'
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export function getSeverity(verdict: Verdict, confidence: Confidence): Severity {
+  if (verdict === 'fabricated' && confidence === 'high') return 'CRITICAL'
+  if (verdict === 'fabricated' && confidence === 'medium') return 'HIGH'
+  if (verdict === 'fabricated' && confidence === 'low') return 'HIGH'
+  if (verdict === 'weak' && confidence === 'high') return 'HIGH'
+  if (verdict === 'weak') return 'MEDIUM'
+  if (verdict === 'authentic') return 'LOW'
+  if (verdict === 'no_hadith') return 'LOW'
+  return 'MEDIUM'
+}

@@ -183,7 +183,7 @@ export default function Home() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
               <span>{currentLang.flag}</span>
               <span className="text-gray-700">{currentLang.label}</span>
-              <span className="text-gray-400 text-xs">▾</span>
+              <span className="text-gray-700 text-xs">▾</span>
             </button>
             {showLangMenu && (
               <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-lg z-50 min-w-44 overflow-hidden">
@@ -246,10 +246,10 @@ export default function Home() {
                     className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50" dir="auto" />
                   <div onClick={() => fileInputRef.current?.click()}
                     className="mt-2 border-2 border-dashed rounded-lg p-3 text-center cursor-pointer border-gray-200 hover:border-gray-300">
-                    <div className="text-xs text-gray-400">{tr.dragDrop}</div>
+                    <div className="text-xs text-gray-700">{tr.dragDrop}</div>
                   </div>
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
-                    <span className="text-xs text-gray-400">{tr.tryLabel}</span>
+                    <span className="text-xs text-gray-700">{tr.tryLabel}</span>
                     <button onClick={() => setPostText(EXAMPLES.uz)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleFabricated}</button>
                     <button onClick={() => setPostText(EXAMPLES.chain)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleChain}</button>
                     <button onClick={() => setPostText(EXAMPLES.authentic)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleAuthentic}</button>
@@ -273,7 +273,7 @@ export default function Home() {
                 <button onClick={() => { setPostText(''); setResult(null); setImage(null); setImagePreview('') }}
                   className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.clear}</button>
                 <div className="ml-auto flex gap-1 items-center">
-                  <span className="text-xs text-gray-400 mr-1">{tr.replyIn}</span>
+                  <span className="text-xs text-gray-700 mr-1">{tr.replyIn}</span>
                   {(['en', 'uz', 'ar', 'ru'] as ReplyLang[]).map(l => (
                     <button key={l} onClick={() => setReplyLang(l)}
                       className={`text-xs px-3 py-1 rounded-full border ${replyLang === l ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'border-gray-200 text-gray-500'}`}>
@@ -353,7 +353,7 @@ export default function Home() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{tr.duaCorrectorTitle}</div>
-              <div className="text-xs text-gray-400 mb-3">{tr.duaCorrectorSubtitle}</div>
+              <div className="text-xs text-gray-700 mb-3">{tr.duaCorrectorSubtitle}</div>
               <div className="flex gap-2 mb-3">
                 <button onClick={() => { setDuaImage(null); setDuaImagePreview('') }}
                   className={`text-xs px-3 py-1.5 rounded-lg border ${!duaImagePreview ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-500'}`}>
@@ -369,7 +369,7 @@ export default function Home() {
                   <textarea value={duaText} onChange={e => setDuaText(e.target.value)} placeholder={tr.duaPlaceholder}
                     className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50" dir="auto" />
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
-                    <span className="text-xs text-gray-400">{tr.tryLabel}</span>
+                    <span className="text-xs text-gray-700">{tr.tryLabel}</span>
                     <button onClick={() => setDuaText(DUA_EXAMPLES.wrong)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleWrongOrder}</button>
                     <button onClick={() => setDuaText(DUA_EXAMPLES.arabic_only)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleArabicOnly}</button>
                     <button onClick={() => setDuaText(DUA_EXAMPLES.transliteration)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleTransliteration}</button>
@@ -444,7 +444,7 @@ export default function Home() {
                           return (
                             <div key={key} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
                               <div className="flex items-center justify-between mb-1">
-                                <div><span className="text-xs font-medium text-gray-700">{label}</span>{desc && <span className="text-xs text-gray-400 ml-2">{desc}</span>}</div>
+                                <div><span className="text-xs font-medium text-gray-700">{label}</span>{desc && <span className="text-xs text-gray-700 ml-2">{desc}</span>}</div>
                                 <CopyButton text={text} label={tr.copyBtn} />
                               </div>
                               <div className="text-sm text-gray-800 leading-relaxed">{text}</div>
@@ -488,7 +488,7 @@ export default function Home() {
                           return (
                             <div key={key} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-medium text-gray-600">{label}</span>
+                                <span className="text-xs font-medium text-gray-700">{label}</span>
                                 <CopyButton text={text} label={tr.copyBtn} />
                               </div>
                               <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap" dir="auto">{text}</div>
@@ -536,7 +536,7 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 text-xs text-gray-400">{tr.sourceAuthorityNote}</div>
+                <div className="mt-3 text-xs text-gray-700">{tr.sourceAuthorityNote}</div>
               </div>
             ))}
           </div>
@@ -561,12 +561,12 @@ export default function Home() {
               {queueLoading && (
                 <div className="flex items-center justify-center py-8 gap-2">
                   <span className="w-4 h-4 border-2 border-emerald-500/40 border-t-emerald-500 rounded-full animate-spin" />
-                  <span className="text-sm text-gray-400">Loading...</span>
+                  <span className="text-sm text-gray-700">Loading...</span>
                 </div>
               )}
 
               {!queueLoading && queue.length === 0 && (
-                <div className="text-sm text-gray-400 py-8 text-center">{tr.noFlaggedPosts}</div>
+                <div className="text-sm text-gray-700 py-8 text-center">{tr.noFlaggedPosts}</div>
               )}
 
               <div className="space-y-3">
@@ -584,11 +584,11 @@ export default function Home() {
                           {item.verdict}
                         </span>
                         {item.confidence && (
-                          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700">
                             {item.confidence} confidence
                           </span>
                         )}
-                        <span className="text-xs text-gray-400 ml-auto">
+                        <span className="text-xs text-gray-700 ml-auto">
                           {new Date(item.created_at).toLocaleDateString()} · {item.lang?.toUpperCase()}
                         </span>
                       </div>
@@ -601,7 +601,7 @@ export default function Home() {
                       {/* Red flags */}
                       {item.red_flags?.length > 0 && (
                         <div className="mb-3">
-                          <div className="text-xs text-gray-400 mb-1">Red flags:</div>
+                          <div className="text-xs text-gray-700 mb-1">Red flags:</div>
                           <div className="flex flex-wrap gap-1">
                             {item.red_flags.slice(0, 3).map((f, i) => (
                               <span key={i} className="text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded-full border border-red-100">
