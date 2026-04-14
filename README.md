@@ -1,76 +1,62 @@
-# Hadith Verifier ☽
+# Hadith Verifier
 
-An AI-powered Islamic hadith authentication tool that detects fabricated or weak hadiths spreading on social media. Supports Uzbek, Arabic, Russian, and English.
+AI-powered tool to detect fabricated and weak hadiths spreading on social media. Supports Facebook, Instagram, WhatsApp, and Telegram posts in Uzbek, Arabic, Russian, and English.
 
 **Live:** https://hadith-verifier-vp57.vercel.app  
 **GitHub:** https://github.com/Farhod75/hadith-verifier
 
 ---
 
-## What it does
+## Features
 
-- Analyzes social media posts for fabricated or weak hadiths
-- Returns a verdict: `fabricated` · `weak` · `authentic` · `unclear` · `no_hadith`
-- Generates compassionate correction comments in 4 languages
-- Saves flagged posts to an admin queue for human review
-- Sends Telegram + Slack alerts for CRITICAL/HIGH severity verdicts
+- **Multi-language** - analyzes posts in any language, generates replies in EN / UZ / AR / RU
+- **3-tier source system** - Dorar.net, Sunnah.com, IslamQA, HadeethEnc, IslamWeb
+- **Red flags detection** - identifies specific fabrication patterns
+- **Ready-to-paste comments** - with direct links to authenticated sources
+- **Admin queue** - persistent Supabase storage, human review workflow
+- **Telegram bot** - users forward suspicious posts, bot replies instantly
+- **Compassionate tone** - never accusatory, always respectful
 
 **Core principle: AI flags, humans decide. No auto-delete or auto-ban.**
 
 ---
 
-## Tech stack
+## Source authority
 
-| Layer | Technology |
+| Tier | Sources |
 |---|---|
-| Frontend | Next.js 14 + TypeScript + Tailwind CSS |
-| AI | Anthropic Claude Sonnet (`claude-sonnet-4-20250514`) |
-| Database | Supabase PostgreSQL |
-| Hosting | Vercel |
-| Alerts | Slack webhook + Telegram Bot API |
-| Testing | Playwright (TypeScript) + pytest (Python) |
+| 1 (Highest) | Dorar.net, Sunnah.com, HadeethEnc.com |
+| 2 | IslamQA.info, IslamWeb.net, Yaqeen Institute, Islamhouse.com |
+| 3 | HadithAPI.com, AboutIslam.net, AlSunnah.com |
 
 ---
 
-## Getting started
+## Quick start (local)
 
-### Prerequisites
-- Node.js 18+
-- Python 3.9+
-- Supabase account
-- Anthropic API key
-
-### Install
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/Farhod75/hadith-verifier.git
+git clone https://github.com/Farhod75/hadith-verifier
 cd hadith-verifier
 npm install
 ```
 
-### Environment variables
-
-Create `.env.local` in the project root:
+### 2. Set up environment variables
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-SLACK_WEBHOOK_URL=https://hooks.slack.com/...
-TELEGRAM_ALERT_BOT_TOKEN=...
-TELEGRAM_ALERT_CHAT_ID=...
+cp .env.example .env.local
+# Edit .env.local and add your keys
 ```
 
-Or pull from Vercel if already deployed:
+Get your keys from:
+- **Anthropic API key** - https://console.anthropic.com
+- **Supabase** - https://supabase.com (free account)
 
-```bash
-vercel pull
-```
+### 3. Set up Supabase database
 
-### Database setup
-
-Run in Supabase SQL Editor:
+1. Create a free project at supabase.com
+2. Go to SQL Editor -> New Query
+3. Run this schema:
 
 ```sql
 CREATE TABLE flagged_posts (
@@ -94,13 +80,23 @@ GRANT ALL ON flagged_posts TO service_role;
 GRANT ALL ON flagged_posts TO anon;
 ```
 
-### Run locally
+4. Copy your project URL and keys to `.env.local`
+
+### 4. Run the web app
 
 ```bash
 npm run dev
+# Open http://localhost:3000
 ```
 
-Open http://localhost:3000
+### 5. Run the Telegram bot (optional)
+
+```bash
+pip install -r requirements.txt
+# Add TELEGRAM_BOT_TOKEN to .env.local
+# Create bot at @BotFather on Telegram first
+python telegram_bot.py
+```
 
 ---
 
@@ -108,35 +104,30 @@ Open http://localhost:3000
 
 ### POST /api/analyze
 
-Analyzes a social media post for fabricated hadiths.
-
-**Request:**
 ```json
 {
   "postText": "string",
-  "lang": "en" | "uz" | "ar" | "ru"
+  "lang": "en | uz | ar | ru"
 }
 ```
 
-**Response:**
+Response:
 ```json
 {
-  "verdict": "fabricated" | "weak" | "authentic" | "unclear" | "no_hadith",
-  "confidence": "high" | "medium" | "low",
-  "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+  "verdict": "fabricated|weak|authentic|unclear|no_hadith",
+  "confidence": "high|medium|low",
+  "severity": "CRITICAL|HIGH|MEDIUM|LOW",
   "claim_summary": "string",
   "analysis": "string",
   "suggested_comment": "string",
   "red_flags": ["string"],
-  "references": [
-    { "source": "string", "url": "string", "authority": "tier1" | "tier2" | "tier3" }
-  ]
+  "references": [{ "source": "string", "url": "string", "authority": "tier1|tier2|tier3" }]
 }
 ```
 
 ### GET /api/queue
 
-Returns all flagged posts ordered by `created_at` DESC, limit 50.
+Returns all flagged posts ordered by created_at DESC, limit 50.
 
 ### PATCH /api/queue
 
@@ -162,23 +153,65 @@ Deletes a post. Body: `{ "id": "uuid" }`
 
 ---
 
-## Source authority tiers
+## What the app can and cannot do
 
-**Tier 1 — Primary sources**
-- [Dorar.net](https://dorar.net) — 520,000+ hadiths, JSON API
-- [Sunnah.com](https://sunnah.com) — 9 major collections
-- [HadeethEnc.com](https://hadeethenc.com) — multi-language including Uzbek
+| Action | Possible |
+|---|---|
+| Analyze any post text | Yes |
+| Generate correction comment | Yes |
+| Post comment automatically | No - Meta API restricts this |
+| Report to Facebook/Instagram | Manual only (open their report flow) |
+| Delete post in your own group | Yes - via Facebook Group admin tools |
+| Telegram bot auto-reply | Yes - full automation |
 
-**Tier 2 — Scholarly fatwa bodies**
-- [IslamQA.info](https://islamqa.info) — Sheikh Saleh Al-Munajjid
-- [IslamWeb.net](https://islamweb.net) — full takhrij
-- [Yaqeen Institute](https://yaqeeninstitute.org) — peer-reviewed scholarship
-- [Islamhouse.com](https://islamhouse.com) — 100+ languages
+---
 
-**Tier 3 — Supporting sources**
-- [HadithAPI.com](https://hadithapi.com)
-- [AboutIslam.net](https://aboutislam.net)
-- [AlSunnah.com](https://alsunnah.com)
+## Deploy to Vercel (web app)
+
+```bash
+vercel --prod --force
+```
+
+Or connect your GitHub repo to Vercel dashboard and add these environment variables:
+- `ANTHROPIC_API_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SLACK_WEBHOOK_URL`
+- `TELEGRAM_ALERT_BOT_TOKEN`
+- `TELEGRAM_ALERT_CHAT_ID`
+
+---
+
+## Deploy Telegram bot to Railway (free)
+
+1. Go to railway.app -> New Project -> Deploy from GitHub
+2. Select your repo
+3. Add environment variables: `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`
+4. Set start command: `python telegram_bot.py`
+5. Deploy
+
+Bot runs 24/7 for free on Railway's starter plan.
+
+---
+
+## How to create your Telegram bot
+
+1. Open Telegram -> search **@BotFather**
+2. Send `/newbot`
+3. Choose a name: `Hadith Verifier`
+4. Choose a username: `hadith_verifier_bot` (must be unique)
+5. Copy the token -> add to `.env.local` as `TELEGRAM_BOT_TOKEN`
+6. Send `/setcommands` and paste:
+
+```
+start - Welcome message
+help - How to use
+lang_en - Reply in English
+lang_uz - Reply in Uzbek
+lang_ar - Reply in Arabic
+lang_ru - Reply in Russian
+```
 
 ---
 
@@ -187,10 +220,7 @@ Deletes a post. Body: `{ "id": "uuid" }`
 ### Playwright (TypeScript)
 
 ```bash
-# Run all tests locally
 npx playwright test
-
-# Run specific suite
 npx playwright test tests/api.spec.ts
 npx playwright test tests/severity.spec.ts
 npx playwright test tests/hadith-verifier.spec.ts
@@ -205,8 +235,6 @@ BASE_URL=https://hadith-verifier-vp57.vercel.app npx playwright test
 ```bash
 cd tests/python
 pip install -r requirements.txt
-
-# Run locally
 pytest test_analyze_api.py -v
 
 # Run against production
@@ -215,32 +243,36 @@ BASE_URL=https://hadith-verifier-vp57.vercel.app pytest test_analyze_api.py -v
 
 ### Test suite status
 
-| Suite | Tests | Status |
-|---|---|---|
-| Playwright API | api.spec.ts | ✅ Passing |
-| Playwright Severity | severity.spec.ts | ✅ Passing |
-| Playwright UI | hadith-verifier.spec.ts | ✅ Passing |
-| Playwright Accessibility | accessibility.spec.ts | ✅ 30 passed |
-| Python pytest | test_analyze_api.py | ✅ 36 passed |
-| **Total** | | **✅ 210 tests** |
+| Suite | File | Tests | Status |
+|---|---|---|---|
+| Playwright API | api.spec.ts | 16 | Passing |
+| Playwright Severity | severity.spec.ts | 18 | Passing |
+| Playwright UI | hadith-verifier.spec.ts | 80 | Passing |
+| Playwright Accessibility | accessibility.spec.ts | 30 | Passing |
+| Python pytest | test_analyze_api.py | 36 | Passing |
+| **Total** | | **180** | **All passing** |
 
 ---
 
-## Deployment
+## Tech stack
 
-```bash
-# Deploy to Vercel
-vercel --prod --force
-```
+- **Next.js 14** + TypeScript + Tailwind CSS
+- **Anthropic Claude** (claude-sonnet-4-20250514)
+- **Supabase** (PostgreSQL for admin queue)
+- **Python** + Telegram Bot API
+- **Vercel** (web app hosting)
+- **Railway** (Telegram bot hosting)
+- **Playwright** + **pytest** (test suites)
 
 ---
 
 ## Known issues
 
-- `text-gray-400` hint text has color contrast ratio of 2.53:1 (below 4.5:1 WCAG 2.1 AA). Tracked in accessibility suite. Fix: replace with `text-gray-700`.
+- `text-gray-400` hint text has color contrast ratio of 2.53:1 (below 4.5:1 WCAG 2.1 AA). Fix: replace with `text-gray-700`.
 
 ---
 
-## License
+## Author
 
-MIT
+Farhod - github.com/Farhod75  
+Built as a portfolio project demonstrating Claude API integration, full-stack TypeScript, Python automation, and real-world AI application design.
