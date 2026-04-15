@@ -82,23 +82,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Post text or image is required' }, { status: 400 })
     }
 
+    // ─── FIXED: All fields now respond in the selected language ───
     const langInstruction =
-      lang === 'uz' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Uzbek language. Every single word must be in Uzbek." :
-      lang === 'ar' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Arabic language. Use Arabic script." :
-      lang === 'ru' ? "IMPORTANT: Write the suggested_comment field ENTIRELY in Russian language. Use Cyrillic script." :
-      "Write the suggested_comment field in English."
+      lang === 'uz'
+        ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL of the following fields ENTIRELY in Uzbek language using Cyrillic script (Ўзбекча Кирилл): claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Do NOT use Latin Uzbek. Do NOT use English. Every single word in these fields must be in Uzbek Cyrillic. Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.`
+        : lang === 'ar'
+        ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL of the following fields ENTIRELY in Arabic language using Arabic script: claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Do NOT use English. Every single word in these fields must be in Arabic. Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.`
+        : lang === 'ru'
+        ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL of the following fields ENTIRELY in Russian language using Cyrillic script: claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Do NOT use English. Every single word in these fields must be in Russian. Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.`
+        : `Write ALL text fields (claim_summary, analysis, authentic_alternative, red_flags, suggested_comment) in English.`
 
-    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith","url":"https://sunnah.com/bukhari:5013","authority":"tier1"}],"suggested_comment":"compassionate reply with greeting correction source URL dua closing"}`
+    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence summary in selected language","red_flags":["flag in selected language","flag in selected language"],"analysis":"2-3 sentences in selected language","authentic_alternative":"what authentic sources say in selected language","references":[{"source":"Sunnah.com","description":"relevant hadith","url":"https://sunnah.com/bukhari:5013","authority":"tier1"}],"suggested_comment":"compassionate reply in selected language with greeting correction source URL dua closing"}`
 
     let messageContent: any[]
     if (imageBase64) {
       messageContent = [
         { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
-        { type: 'text', text: `Analyze this social media post image for fabricated hadiths. Extract ALL visible text first then analyze.\n${langInstruction}\n${postText ? `Additional context: ${postText}` : ''}\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
+        { type: 'text', text: `Analyze this social media post image for fabricated hadiths. Extract ALL visible text first then analyze.\n\n${langInstruction}\n\n${postText ? `Additional context: ${postText}` : ''}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
       ]
     } else {
       messageContent = [
-        { type: 'text', text: `Analyze this post for fabricated hadiths:\n"""\n${postText}\n"""\n${langInstruction}\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
+        { type: 'text', text: `Analyze this post for fabricated hadiths:\n"""\n${postText}\n"""\n\n${langInstruction}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
       ]
     }
 
