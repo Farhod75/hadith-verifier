@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { FABRICATED_POSTS, AUTHENTIC_POSTS, VALID_SOURCE_DOMAINS } from './fixtures/test-data'
+import {
+  FABRICATED_POSTS,
+  AUTHENTIC_POSTS,
+  VALID_SOURCE_DOMAINS,
+  getSeverity,
+  type Verdict,
+  type Confidence
+} from './fixtures/test-data'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
@@ -98,7 +105,6 @@ test.describe('POST /api/analyze — AI quality tests (CT-GenAI)', () => {
   })
 
   test('authentic Bukhari hadith should return a valid verdict', async ({ request }) => {
-    // AI is non-deterministic for well-known hadiths — just verify valid response structure
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: AUTHENTIC_POSTS.bukhari, lang: 'en' }, timeout: 60000
     })
@@ -114,7 +120,6 @@ test.describe('POST /api/analyze — AI quality tests (CT-GenAI)', () => {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'en' }, timeout: 60000
     })
     const body = await res.json()
-    // Check broadly across red_flags and analysis for chain-related content
     const allContent = [
       ...(body.red_flags || []),
       body.analysis || '',
@@ -166,37 +171,112 @@ test.describe('POST /api/analyze — Hallucination detection (CT-GenAI)', () => 
   })
 })
 
+// ─────────────────────────────────────────────────────────────
+// Language tests — UPDATED: now checks ALL fields not just comment
+// CT-GenAI: full language output validation
+// ─────────────────────────────────────────────────────────────
 test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   test.setTimeout(90000)
 
-  test('UZ lang should produce Uzbek comment', async ({ request }) => {
+  test('UZ lang — comment, analysis, claim_summary must be in Uzbek Cyrillic', async ({ request }) => {
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'uz' }, timeout: 60000
     })
     const body = await res.json()
     const comment = body.suggested_comment?.toLowerCase() || ''
-    expect(
+    const analysis = body.analysis || ''
+    const claim = body.claim_summary || ''
+
+    // suggested_comment must be in Uzbek Cyrillic (keyword check + Cyrillic fallback)
+    const hasUzbekKeyword =
       comment.includes('assalomu') ||
       comment.includes('alaykum') ||
       comment.includes('alloh') ||
-      comment.includes('hadis')
-    ).toBe(true)
+      comment.includes('hadis') ||
+      comment.includes('rivoyat') ||
+      comment.includes('sahih') ||
+      comment.includes('uydirma') ||
+      comment.includes('islom') ||
+      comment.includes('quron') ||
+      comment.includes('manba') ||
+      /[\u0400-\u04FF]/.test(comment)
+    expect(hasUzbekKeyword).toBe(true)
+
+    // analysis must contain Cyrillic characters
+    expect(/[\u0400-\u04FF]/.test(analysis)).toBe(true)
+
+    // claim_summary must contain Cyrillic characters
+    expect(/[\u0400-\u04FF]/.test(claim)).toBe(true)
   })
 
-  test('AR lang should produce comment with Arabic characters', async ({ request }) => {
+  test('UZ lang — red_flags must be in Uzbek Cyrillic', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.uzbek, lang: 'uz' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.red_flags?.length > 0) {
+      const allFlags = body.red_flags.join(' ')
+      expect(/[\u0400-\u04FF]/.test(allFlags)).toBe(true)
+    }
+  })
+
+  test('AR lang — comment, analysis, claim_summary must contain Arabic characters', async ({ request }) => {
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'ar' }, timeout: 60000
     })
     const body = await res.json()
     expect(/[\u0600-\u06FF]/.test(body.suggested_comment || '')).toBe(true)
+    expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(true)
+    expect(/[\u0600-\u06FF]/.test(body.claim_summary || '')).toBe(true)
   })
 
-  test('RU lang should produce comment with Cyrillic characters', async ({ request }) => {
+  test('AR lang — red_flags must contain Arabic characters', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.arabic, lang: 'ar' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.red_flags?.length > 0) {
+      const allFlags = body.red_flags.join(' ')
+      expect(/[\u0600-\u06FF]/.test(allFlags)).toBe(true)
+    }
+  })
+
+  test('RU lang — comment, analysis, claim_summary must contain Cyrillic characters', async ({ request }) => {
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'ru' }, timeout: 60000
     })
     const body = await res.json()
     expect(/[\u0400-\u04FF]/.test(body.suggested_comment || '')).toBe(true)
+    expect(/[\u0400-\u04FF]/.test(body.analysis || '')).toBe(true)
+    expect(/[\u0400-\u04FF]/.test(body.claim_summary || '')).toBe(true)
+  })
+
+  test('RU lang — red_flags must contain Cyrillic characters', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.russian, lang: 'ru' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.red_flags?.length > 0) {
+      const allFlags = body.red_flags.join(' ')
+      expect(/[\u0400-\u04FF]/.test(allFlags)).toBe(true)
+    }
+  })
+
+  test('EN lang — all fields must be in English', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.chain_message, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    const comment = body.suggested_comment?.toLowerCase() || ''
+    expect(
+      comment.includes('assalamu') ||
+      comment.includes('narration') ||
+      comment.includes('fabricated') ||
+      comment.includes('authentic') ||
+      comment.includes('reference')
+    ).toBe(true)
+    // EN should NOT contain Arabic or Cyrillic in analysis
+    expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(false)
   })
 })
 
@@ -205,5 +285,61 @@ test.describe('GET /api/queue — Admin queue', () => {
     const res = await request.get(`${BASE_URL}/api/queue`)
     expect(res.status()).toBe(200)
     expect(Array.isArray(await res.json())).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// Severity scoring tests (CT-GenAI — CRITICAL/HIGH/MEDIUM/LOW)
+// ─────────────────────────────────────────────────────────────
+test.describe('POST /api/analyze — Severity scoring (CT-GenAI)', () => {
+  test.setTimeout(90000)
+
+  test('fabricated + high confidence should map to CRITICAL', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.high_confidence, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.verdict === 'fabricated' && body.confidence === 'high') {
+      expect(getSeverity(body.verdict as Verdict, body.confidence as Confidence)).toBe('CRITICAL')
+    }
+  })
+
+  test('chain message should produce CRITICAL or HIGH severity', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.chain_message, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    const severity = getSeverity(body.verdict as Verdict, body.confidence as Confidence)
+    expect(['CRITICAL', 'HIGH']).toContain(severity)
+  })
+
+  test('authentic hadith should produce LOW severity', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: AUTHENTIC_POSTS.bukhari, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.verdict === 'authentic') {
+      expect(getSeverity(body.verdict as Verdict, body.confidence as Confidence)).toBe('LOW')
+    }
+  })
+
+  test('no_hadith post should produce LOW severity', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: AUTHENTIC_POSTS.no_hadith, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.verdict === 'no_hadith') {
+      expect(getSeverity(body.verdict as Verdict, body.confidence as Confidence)).toBe('LOW')
+    }
+  })
+
+  test('severity field in response must be valid enum if present', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      data: { postText: FABRICATED_POSTS.uzbek, lang: 'en' }, timeout: 60000
+    })
+    const body = await res.json()
+    if (body.severity) {
+      expect(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']).toContain(body.severity)
+    }
   })
 })
