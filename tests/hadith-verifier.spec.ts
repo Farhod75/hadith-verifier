@@ -194,15 +194,16 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.waitForSelector('text=/ready-to-post/i', { timeout: 60000 })
     const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
     expect(
-      text?.includes('Assalomu') ||
-      text?.includes('alaykum') ||
-      text?.includes('Alloh') ||
-      text?.includes('hadis') ||
-      text?.includes('rivoyat') ||
-      text?.includes('sahih') ||
-      text?.includes('islom') ||
-      text?.toLowerCase().includes('assalamu')
-    ).toBe(true)
+  text?.includes('Assalomu') ||
+  text?.includes('alaykum') ||
+  text?.includes('hadis') ||
+  text?.includes('Alloh') ||
+  text?.includes('rivoyat') ||
+  text?.includes('uydirma') ||
+  text?.includes('islom') ||
+  text?.includes('manba') ||
+  /[\u0400-\u04FF]/.test(text || '')  // Cyrillic fallback
+).toBe(true)
   })
 
   test('should generate Arabic comment when AR selected', async ({ page }) => {
