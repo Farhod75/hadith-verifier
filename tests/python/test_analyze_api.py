@@ -28,6 +28,9 @@ VALID_SOURCE_DOMAINS = [
     "islamhouse.com",
 ]
 
+CYRILLIC = re.compile(r"[\u0400-\u04FF]")
+ARABIC = re.compile(r"[\u0600-\u06FF]")
+
 # ─────────────────────────────────────────────────────────────
 # TEST DATA
 # ─────────────────────────────────────────────────────────────
@@ -239,36 +242,94 @@ class TestHallucinationDetection:
 
 
 # ─────────────────────────────────────────────────────────────
-# SUITE 5: Language output tests (CT-GenAI)
+# SUITE 5: Language output tests — UPDATED
+# CT-GenAI: validates ALL fields not just suggested_comment
 # ─────────────────────────────────────────────────────────────
 class TestLanguageOutput:
 
-    def test_uz_lang_produces_uzbek_comment(self):
+    def test_uz_comment_is_uzbek(self):
         body = post_analyze(FABRICATED_CHAIN, lang="uz")
         comment = body["suggested_comment"].lower()
         has_uzbek = any(k in comment for k in [
             "assalomu", "alaykum", "alloh", "hadis",
-            "rivoyat", "sahih", "islom", "assalamu"
-        ])
-        assert has_uzbek, f"No Uzbek keywords found in: {comment[:200]}"
+            "rivoyat", "sahih", "islom", "uydirma", "manba"
+        ]) or bool(CYRILLIC.search(comment))
+        assert has_uzbek, f"No Uzbek content in comment: {comment[:200]}"
 
-    def test_ar_lang_produces_arabic_characters(self):
+    def test_uz_analysis_is_cyrillic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="uz")
+        assert CYRILLIC.search(body.get("analysis", "")), \
+            "UZ analysis must contain Cyrillic characters"
+
+    def test_uz_claim_summary_is_cyrillic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="uz")
+        assert CYRILLIC.search(body.get("claim_summary", "")), \
+            "UZ claim_summary must contain Cyrillic characters"
+
+    def test_uz_red_flags_are_cyrillic(self):
+        body = post_analyze(FABRICATED_UZBEK, lang="uz")
+        if body.get("red_flags"):
+            all_flags = " ".join(body["red_flags"])
+            assert CYRILLIC.search(all_flags), \
+                "UZ red_flags must contain Cyrillic characters"
+
+    def test_ar_comment_has_arabic(self):
         body = post_analyze(FABRICATED_CHAIN, lang="ar")
-        has_arabic = bool(re.search(r"[\u0600-\u06FF]", body["suggested_comment"]))
-        assert has_arabic, "No Arabic characters in AR comment"
+        assert ARABIC.search(body.get("suggested_comment", "")), \
+            "AR comment must contain Arabic characters"
 
-    def test_ru_lang_produces_cyrillic_characters(self):
+    def test_ar_analysis_has_arabic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="ar")
+        assert ARABIC.search(body.get("analysis", "")), \
+            "AR analysis must contain Arabic characters"
+
+    def test_ar_claim_summary_has_arabic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="ar")
+        assert ARABIC.search(body.get("claim_summary", "")), \
+            "AR claim_summary must contain Arabic characters"
+
+    def test_ar_red_flags_have_arabic(self):
+        body = post_analyze(FABRICATED_ARABIC, lang="ar")
+        if body.get("red_flags"):
+            all_flags = " ".join(body["red_flags"])
+            assert ARABIC.search(all_flags), \
+                "AR red_flags must contain Arabic characters"
+
+    def test_ru_comment_has_cyrillic(self):
         body = post_analyze(FABRICATED_CHAIN, lang="ru")
-        has_cyrillic = bool(re.search(r"[\u0400-\u04FF]", body["suggested_comment"]))
-        assert has_cyrillic, "No Cyrillic characters in RU comment"
+        assert CYRILLIC.search(body.get("suggested_comment", "")), \
+            "RU comment must contain Cyrillic characters"
 
-    def test_en_lang_produces_english_comment(self):
+    def test_ru_analysis_has_cyrillic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="ru")
+        assert CYRILLIC.search(body.get("analysis", "")), \
+            "RU analysis must contain Cyrillic characters"
+
+    def test_ru_claim_summary_has_cyrillic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="ru")
+        assert CYRILLIC.search(body.get("claim_summary", "")), \
+            "RU claim_summary must contain Cyrillic characters"
+
+    def test_ru_red_flags_have_cyrillic(self):
+        body = post_analyze(FABRICATED_RUSSIAN, lang="ru")
+        if body.get("red_flags"):
+            all_flags = " ".join(body["red_flags"])
+            assert CYRILLIC.search(all_flags), \
+                "RU red_flags must contain Cyrillic characters"
+
+    def test_en_comment_has_english_keywords(self):
         body = post_analyze(FABRICATED_CHAIN, lang="en")
-        comment = body["suggested_comment"].lower()
+        comment = body.get("suggested_comment", "").lower()
         has_english = any(k in comment for k in [
             "assalamu", "narration", "fabricated", "authentic", "reference"
         ])
-        assert has_english, f"No English keywords found in: {comment[:200]}"
+        assert has_english, f"No English keywords in EN comment: {comment[:200]}"
+
+    def test_en_analysis_has_no_arabic_or_cyrillic(self):
+        body = post_analyze(FABRICATED_CHAIN, lang="en")
+        analysis = body.get("analysis", "")
+        assert not ARABIC.search(analysis), "EN analysis must not contain Arabic"
+        assert not CYRILLIC.search(analysis), "EN analysis must not contain Cyrillic"
 
 
 # ─────────────────────────────────────────────────────────────
