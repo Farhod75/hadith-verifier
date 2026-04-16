@@ -237,8 +237,11 @@ cd tests/python
 pip install -r requirements.txt
 pytest test_analyze_api.py -v
 
-# Run against production
-BASE_URL=https://hadith-verifier-vp57.vercel.app pytest test_analyze_api.py -v
+# Run against production (PowerShell)
+$env:BASE_URL="https://hadith-verifier-vp57.vercel.app"; npx playwright test
+
+# Run against production (bash/mac)
+BASE_URL=https://hadith-verifier-vp57.vercel.app npx playwright test
 ```
 
 ### Test suite status
@@ -249,8 +252,9 @@ BASE_URL=https://hadith-verifier-vp57.vercel.app pytest test_analyze_api.py -v
 | Playwright Severity | severity.spec.ts | 18 | Passing |
 | Playwright UI | hadith-verifier.spec.ts | 80 | Passing |
 | Playwright Accessibility | accessibility.spec.ts | 30 | Passing |
-| Python pytest | test_analyze_api.py | 36 | Passing |
-| **Total** | | **180** | **All passing** |
+| Playwright Analytics | analytics.spec.ts | 8 | Passing |
+| Python pytest | test_analyze_api.py | 46 | Passing |
+| **Total** | | **198** | **All passing** |
 
 ---
 
