@@ -128,9 +128,19 @@ export default function Home() {
         res = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ postText, lang: replyLang }) })
       }
       const data = await res.json()
+      if (res.status === 429) {
+        const limitMessages: Record<string, string> = {
+          uz: 'Kunlik so\'rov limiti tugadi. Ertaga qayta urinib ko\'ring.',
+          ar: 'تم الوصول إلى الحد اليومي. يرجى المحاولة مرة أخرى غداً.',
+          ru: 'Достигнут дневной лимит запросов. Попробуйте снова завтра.',
+          en: 'Daily limit reached. Please try again tomorrow.'
+        }
+        alert(limitMessages[replyLang] || limitMessages.en)
+        setLoading(false)
+        return
+      }
       if (data.error) { alert(data.error); return }
       setResult(data)
-      setStats(p => ({ total: p.total + 1, fabricated: p.fabricated + (['fabricated','weak'].includes(data.verdict) ? 1 : 0), authentic: p.authentic + (data.verdict === 'authentic' ? 1 : 0) }))
     } catch { alert('Analysis failed.') }
     setLoading(false)
   }
