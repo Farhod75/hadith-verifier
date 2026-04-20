@@ -52,7 +52,7 @@ async function sendAlerts(result: any, lang: string, postText: string) {
   }
 }
 
-const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences. When given an image, extract ALL text visible then analyze it. When given text, analyze directly. Analyze for fabricated or weak hadiths attributed to Prophet Muhammad. Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON.`
+const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences. When given an image, extract ALL text visible then analyze it. When given text, analyze directly. Analyze for fabricated or weak hadiths attributed to Prophet Muhammad. Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON. For suggested_comment, never include specific hadith numbers or deep links as references. Instead direct users to sunnah.com and islamqa.info as general trusted sources to verify.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
         ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL of the following fields ENTIRELY in Russian language using Cyrillic script: claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Do NOT use English. Every single word in these fields must be in Russian. Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.`
         : `Write ALL text fields (claim_summary, analysis, authentic_alternative, red_flags, suggested_comment) in English.`
 
-    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence summary in selected language","red_flags":["flag in selected language","flag in selected language"],"analysis":"2-3 sentences in selected language","authentic_alternative":"what authentic sources say in selected language","references":[{"source":"Sunnah.com","description":"relevant hadith","url":"https://sunnah.com/bukhari:5013","authority":"tier1"}],"suggested_comment":"compassionate reply in selected language with greeting correction source URL dua closing"}`
+    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence summary in selected language","red_flags":["flag in selected language","flag in selected language"],"analysis":"2-3 sentences in selected language","authentic_alternative":"what authentic sources say in selected language","suggested_comment":"compassionate reply in selected language with greeting, correction, then add this line: Manba uchun tashrif buyuring: sunnah.com | islamqa.info, dua closing"}`
 
     let messageContent: any[]
     if (imageBase64) {
