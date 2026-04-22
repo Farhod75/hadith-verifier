@@ -119,12 +119,15 @@ export async function POST(req: NextRequest) {
     let result
     try {
       result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      // Normalize — AI occasionally returns null/object instead of array
+      if (!Array.isArray(result.references)) result.references = []
+      if (!Array.isArray(result.red_flags))  result.red_flags  = []
     } catch {
       return NextResponse.json({ error: 'Parse error' }, { status: 500 })
     }
 
     // Calculate severity
-    const severity = calculateSeverity(result.verdict, result.confidence, result.red_flags ?? [])
+    const severity = calculateSeverity(result.verdict, result.confidence, result.red_flags)
     result.severity = severity
 
     // Save to Supabase
