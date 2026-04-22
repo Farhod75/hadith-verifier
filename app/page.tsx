@@ -19,7 +19,7 @@ interface DuaResult {
   transliterations: { latin_uz: string; cyrillic_uz: string; cyrillic_ru: string; english: string }
   translation: { uz: string; ru: string; en: string }
   source: { name: string; reference: string; url: string; grade: string }
-  suggested_comment: { uz_latin: string; uz_cyrillic: string; ru: string; en: string }
+  suggested_comment: { uz_latin: string; uz_cyrillic: string; ru: string; en: string; tj: string }
 }
 interface QueueItem {
   id: string; post_text: string; verdict: string; confidence: string
@@ -492,6 +492,7 @@ export default function Home() {
                           { key: 'uz_cyrillic', label: '🇺🇿 Ўзбек Кирилл' },
                           { key: 'ru', label: '🇷🇺 Русский' },
                           { key: 'en', label: '🇬🇧 English' },
+                          { key: 'tj',          label: '🇹🇯 Тоҷикӣ' },  // ← add this
                         ].map(({ key, label }) => {
                           const text = duaResult.suggested_comment[key as keyof typeof duaResult.suggested_comment]
                           if (!text) return null

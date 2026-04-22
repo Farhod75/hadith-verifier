@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     "uz_latin": "correction comment in Uzbek Latin",
     "uz_cyrillic": "correction comment in Uzbek Cyrillic for older generation",
     "ru": "correction comment in Russian",
-    "en": "correction comment in English"
+    "en": "correction comment in English",
+    "tj":"correction in Tajik Cyrillic"
   }
 }`
 
