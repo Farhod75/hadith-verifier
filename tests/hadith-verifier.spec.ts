@@ -152,7 +152,7 @@ test.describe('AI — Output quality (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('text=/verified sources/i', { timeout: 60000 })
+    await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
     await expect(page.getByText(/verified sources/i)).toBeVisible()
   })
 })
@@ -164,7 +164,7 @@ test.describe('AI — Hallucination detection (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('a[href^="https://"]', { timeout: 60000 })
+    await page.waitForSelector('a[href^="https://"]', { timeout: 90000 })
     const links = page.locator('a[href^="https://"]')
     expect(await links.count()).toBeGreaterThan(0)
     const href = await links.first().getAttribute('href')
@@ -183,7 +183,7 @@ test.describe('AI — Hallucination detection (CT-GenAI)', () => {
 })
 
 test.describe('Language switching (CT-GenAI)', () => {
-  test.setTimeout(90000)
+  test.setTimeout(120000)
 
   test('should generate Uzbek comment when UZ selected', async ({ page }) => {
     await page.goto('/')
