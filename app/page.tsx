@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { t, getDir, APP_LANGUAGES, type AppLang } from '@/lib/i18n'
 
-type ReplyLang = 'en' | 'uz' | 'ar' | 'ru'
+type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' | 'tj'
 type Tab = 'analyze' | 'dua' | 'sources' | 'admin'
 type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
 
@@ -284,7 +284,7 @@ export default function Home() {
                   className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.clear}</button>
                 <div className="ml-auto flex gap-1 items-center">
                   <span className="text-xs text-gray-700 mr-1">{tr.replyIn}</span>
-                  {(['en', 'uz', 'ar', 'ru'] as ReplyLang[]).map(l => (
+                  {(['en', 'uz', 'ar', 'ru', 'tj'] as ReplyLang[]).map(l => (
                     <button key={l} onClick={() => setReplyLang(l)}
                       className={`text-xs px-3 py-1 rounded-full border ${replyLang === l ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'border-gray-200 text-gray-500'}`}>
                       {l.toUpperCase()}
