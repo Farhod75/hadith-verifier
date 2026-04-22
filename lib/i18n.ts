@@ -110,7 +110,7 @@ export type Translations = {
 const translations: Record<AppLang, Translations> = {
   en: {
     appName: 'Hadith Verifier',
-    appSubtitle: 'Hadith authentication · Dua corrector · EN · UZ · AR · RU',
+    appSubtitle: 'Hadith authentication · Dua corrector · EN · UZ · AR · RU · TJ',
     tabAnalyze: 'Analyze post',
     tabDua: 'Dua corrector',
     tabSources: 'Sources',
@@ -184,7 +184,7 @@ const translations: Record<AppLang, Translations> = {
 
   uz_latin: {
     appName: 'Hadis Tekshiruvchi',
-    appSubtitle: 'Hadis autentifikatsiyasi · Duo tuzatuvchi · UZ · RU · AR · EN',
+    appSubtitle: 'Hadis autentifikatsiyasi · Duo tuzatuvchi · UZ · RU · AR · EN · TJ',
     tabAnalyze: 'Postni tahlil qilish',
     tabDua: 'Duo tuzatuvchi',
     tabSources: 'Manbalar',
@@ -258,7 +258,7 @@ const translations: Record<AppLang, Translations> = {
 
   uz_cyrillic: {
     appName: 'Ҳадис Текширувчи',
-    appSubtitle: 'Ҳадис аутентификацияси · Дуо тузатувчи · ЎЗ · РУ · АР · ИН',
+    appSubtitle: 'Ҳадис аутентификацияси · Дуо тузатувчи · ЎЗ · РУ · АР · ИН · ТЖ',
     tabAnalyze: 'Постни таҳлил қилиш',
     tabDua: 'Дуо тузатувчи',
     tabSources: 'Манбалар',
@@ -332,7 +332,7 @@ const translations: Record<AppLang, Translations> = {
 
   ru: {
     appName: 'Верификатор Хадисов',
-    appSubtitle: 'Аутентификация хадисов · Корректор дуа · RU · UZ · AR · EN',
+    appSubtitle: 'Аутентификация хадисов · Корректор дуа · RU · UZ · AR · EN · TJ',
     tabAnalyze: 'Анализ поста',
     tabDua: 'Корректор дуа',
     tabSources: 'Источники',
@@ -406,7 +406,7 @@ const translations: Record<AppLang, Translations> = {
 
   ar: {
     appName: 'موثّق الحديث',
-    appSubtitle: 'التحقق من الأحاديث · تصحيح الأدعية · AR · UZ · RU · EN',
+    appSubtitle: 'التحقق من الأحاديث · تصحيح الأدعية · AR · UZ · RU · EN · TJ',
     tabAnalyze: 'تحليل المنشور',
     tabDua: 'تصحيح الدعاء',
     tabSources: 'المصادر',
@@ -479,7 +479,7 @@ const translations: Record<AppLang, Translations> = {
   },
   tj: {
     appName: 'Тасдиқкунандаи Ҳадис',
-    appSubtitle: 'Аутентикатсияи ҳадис · Ислоҳкунандаи дуо · TJ · UZ · AR · RU',
+    appSubtitle: 'Аутентикатсияи ҳадис · Ислоҳкунандаи дуо · TJ · UZ · AR · RU · EN',
     tabAnalyze: 'Таҳлили паём',
     tabDua: 'Ислоҳкунандаи дуо',
     tabSources: 'Манбаҳо',
@@ -548,7 +548,7 @@ const translations: Record<AppLang, Translations> = {
     reportBtn: 'Шикоят',
     dismissBtn: 'Рад кардан',
     reportInstruction: 'Facebook-ро кушоед → паёмро ёбед → се нуқта → Шикоят → Маълумоти дурӯғ',
-    removeImage: 'Хорид кардан',
+    removeImage: 'Хориҷ кардан',
   },
 }
 
