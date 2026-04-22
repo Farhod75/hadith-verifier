@@ -3,7 +3,7 @@
 // App UI translations for EN, UZ Latin, UZ Cyrillic, RU, AR
 // ============================================================
 
-export type AppLang = 'en' | 'uz_latin' | 'uz_cyrillic' | 'ru' | 'ar'
+export type AppLang = 'en' | 'uz_latin' | 'uz_cyrillic' | 'ru' | 'ar' | 'tj'
 
 export const APP_LANGUAGES = [
   { code: 'en' as AppLang, label: 'English', flag: '🇬🇧', dir: 'ltr' },
@@ -11,6 +11,7 @@ export const APP_LANGUAGES = [
   { code: 'uz_cyrillic' as AppLang, label: 'Ўзбек', flag: '🇺🇿', dir: 'ltr' },
   { code: 'ru' as AppLang, label: 'Русский', flag: '🇷🇺', dir: 'ltr' },
   { code: 'ar' as AppLang, label: 'العربية', flag: '🇸🇦', dir: 'rtl' },
+  { code: 'tj' as AppLang, label: 'Тоҷикӣ', flag: '🇹🇯', dir: 'ltr' }, // ← add this
 ]
 
 export type Translations = {
@@ -475,7 +476,80 @@ const translations: Record<AppLang, Translations> = {
     dismissBtn: 'تجاهل',
     reportInstruction: 'افتح فيسبوك ← ابحث عن المنشور ← ثلاث نقاط ← إبلاغ ← معلومات كاذبة',
     removeImage: 'إزالة',
-  }
+  },
+  tj: {
+    appName: 'Тасдиқкунандаи Ҳадис',
+    appSubtitle: 'Аутентикатсияи ҳадис · Ислоҳкунандаи дуо · TJ · UZ · AR · RU',
+    tabAnalyze: 'Таҳлили паём',
+    tabDua: 'Ислоҳкунандаи дуо',
+    tabSources: 'Манбаҳо',
+    tabAdmin: 'Навбати маъмур',
+    statChecked: 'Санҷида шуд',
+    statFlagged: 'Қайд шуд',
+    statAuthentic: 'Саҳеҳ',
+    pasteText: 'Матнро ҷойгир кунед',
+    uploadScreenshot: 'Скриншот бор кунед',
+    pastePostContent: 'Матни паёмро ҷойгир кунед',
+    postPlaceholder: 'Матни паёми Facebook, Instagram ё WhatsApp-ро ҷойгир кунед — ба ҳар забон (тоҷикӣ, арабӣ, русӣ, англисӣ...)',
+    dragDrop: 'Ё скриншотро ин ҷо кашед · Барои интихоб клик кунед',
+    tryLabel: 'Санҷед:',
+    exampleFabricated: 'Сохта (ӯзбекӣ)',
+    exampleChain: 'Паёми занҷирӣ',
+    exampleAuthentic: 'Ҳадиси саҳеҳ',
+    analyzePost: 'Таҳлили паём',
+    analyzeScreenshot: 'Таҳлили скриншот',
+    analyzing: 'Таҳлил мешавад...',
+    readingImage: 'Акс хонда мешавад...',
+    clear: 'Тоза кардан',
+    replyIn: 'Ҷавоб ба:',
+    extractedFromScreenshot: 'Матн аз скриншот гирифта шуд',
+    highConfidence: 'эътимоди баланд',
+    mediumConfidence: 'эътимоди миёна',
+    lowConfidence: 'эътимоди паст',
+    redFlagsDetected: 'Аломатҳои сохта будан ошкор шуд',
+    authenticScholarshipSays: 'Илми саҳеҳ чӣ мегӯяд',
+    verifiedSources: 'Манбаҳои тасдиқшуда',
+    readyToPost: 'Шарҳи омодаи нашр',
+    copyComment: 'Нусхабардории шарҳ',
+    copied: 'Нусхабардорӣ шуд!',
+    viewInAdminQueue: 'Дар навбати маъмур бинед →',
+    verdictFabricated: 'Ҳадиси сохта',
+    verdictWeak: 'Заиф / тасдиқнашуда',
+    verdictAuthentic: 'Саҳеҳ',
+    verdictUnclear: 'Санҷиш лозим',
+    verdictNoHadith: 'Ҳадис ёфт нашуд',
+    duaCorrectorTitle: 'Ислоҳкунандаи дуо',
+    duaCorrectorSubtitle: 'Тартиби калимаҳои арабӣ, ҳаракатҳо ва хатоҳои транслитератсияро санҷад.',
+    duaPlaceholder: 'Матни дуои арабӣ ё транслитератсияро ҷойгир кунед — бо ҳар алифбо...',
+    exampleWrongOrder: 'Тартиби нодуруст (мисли Reel)',
+    exampleArabicOnly: 'Танҳо арабӣ',
+    exampleTransliteration: 'Транслитератсия',
+    checkDua: 'Санҷиши дуо',
+    checking: 'Санҷида мешавад...',
+    errorsFound: 'Хатоҳо ёфт шуд',
+    correctArabic: 'Арабии ислоҳшуда бо ҳаракатҳо',
+    copyArabic: 'Нусхабардории арабӣ',
+    transliterations: 'Транслитератсияҳо — 4 хат',
+    meaning: 'Маъно / Тарҷума',
+    correctionComments: 'Шарҳҳои омодаи ислоҳ',
+    duaCorrect: 'Дуои дуруст',
+    duaHasErrors: 'Хатоҳо мавҷуданд',
+    duaUnknown: 'Дуои номаълум',
+    source: 'Манба',
+    tier1Title: 'Дараҷаи 1 — Маҷмӯаҳои асосӣ (баландтарин эътибор)',
+    tier2Title: 'Дараҷаи 2 — Мақомоти фатвои уламо',
+    tier3Title: 'Дараҷаи 3 — Манбаҳои иловагӣ',
+    sourceAuthorityNote: 'Зеҳни сунъӣ тибқи тартиб санҷад: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    flaggedPostsQueue: 'Навбати паёмҳои қайдшуда',
+    refresh: 'Навсозӣ',
+    noFlaggedPosts: 'Ҳоло паёмҳои қайдшуда нест.',
+    adminPolicy: 'Сиёсати маъмур: Зеҳни сунъӣ қайд мекунад, одамон қарор мегиранд. Нест кардани худкор манъ аст.',
+    copyBtn: 'Нусхабардорӣ',
+    reportBtn: 'Шикоят',
+    dismissBtn: 'Рад кардан',
+    reportInstruction: 'Facebook-ро кушоед → паёмро ёбед → се нуқта → Шикоят → Маълумоти дурӯғ',
+    removeImage: 'Хорид кардан',
+  },
 }
 
 export function t(lang: AppLang): Translations {
