@@ -1,0 +1,50 @@
+name: Playwright Auto-Fix Agent
+
+on:
+  workflow_run:
+    workflows: ["Playwright Tests"]
+    types: [completed]
+
+jobs:
+  auto-fix:
+    # Only run when tests fail AND on main branch
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write      # push fix branch
+      pull-requests: write # open PR
+      actions: read        # read annotations
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # full history for git log
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install agent dependencies
+        run: pip install anthropic requests
+
+      - name: Run Playwright Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python agents/playwright_agent.py ${{ github.event.workflow_run.id }}
+
+      - name: Upload agent log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-log-${{ github.run_id }}
+          path: agents/logs/
+          retention-days: 7
