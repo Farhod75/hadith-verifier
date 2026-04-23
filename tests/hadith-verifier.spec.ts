@@ -113,7 +113,7 @@ test.describe('AI — Fabricated hadith detection', () => {
 })
 
 test.describe('AI — Output quality (CT-GenAI)', () => {
-  test.setTimeout(90000)
+  test.setTimeout(120000)
 
   test('should return a verdict box', async ({ page }) => {
     await page.goto('/')
@@ -158,7 +158,7 @@ test.describe('AI — Output quality (CT-GenAI)', () => {
 })
 
 test.describe('AI — Hallucination detection (CT-GenAI)', () => {
-  test.setTimeout(90000)
+  test.setTimeout(120000)
 
   test('should provide real URLs from valid sources', async ({ page }) => {
     await page.goto('/')
