@@ -93,17 +93,17 @@ export async function POST(req: NextRequest) {
         : lang === 'tj' ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL fields ENTIRELY in Tajik Cyrillic. Do NOT use Uzbek words or phrases anywhere — especially avoid Uzbek phrases like "ташриф буюринг", "марҳамат қилинг", "илтимос". Use Tajik equivalents instead: say "барои дидан гузаред" or "ба манба муроҷиат кунед" instead of "ташриф буюринг". Fields to write in Tajik: claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Every single sentence must be in Tajik. When referring to the Prophet write (с.а.в). Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.` 
         : `Write ALL text fields (claim_summary, analysis, authentic_alternative, red_flags, suggested_comment) in English.`
 
-    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence summary in selected language","red_flags":["flag in selected language","flag in selected language"],"analysis":"2-3 sentences in selected language","authentic_alternative":"what authentic sources say in selected language","suggested_comment":"compassionate reply in selected language with greeting, correction, then add this line: Manba uchun tashrif buyuring: sunnah.com | islamqa.info, dua closing"}`
+    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith or ruling","url":"https://sunnah.com/bukhari:574","authority":"tier1"},{"source":"Dorar.net","description":"hadith grading and analysis","url":"https://dorar.net/hadith/sharh/12345","authority":"tier1"}],"suggested_comment":"compassionate reply with greeting correction source URL dua closing"}`
 
     let messageContent: any[]
     if (imageBase64) {
       messageContent = [
         { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
-        { type: 'text', text: `Analyze this social media post image for fabricated hadiths. Extract ALL visible text first then analyze.\n\n${langInstruction}\n\n${postText ? `Additional context: ${postText}` : ''}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
+        { type: 'text', text: `Analyze this social media post image for fabricated hadiths. Extract ALL visible text first then analyze.\n\n${langInstruction}\n\n${postText ? `Additional context: ${postText}` : ''}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith\nCRITICAL: Always include at least 2 real references with real URLs from sunnah.com, dorar.net, or islamqa.info. Never return an empty references array.` }
       ]
     } else {
       messageContent = [
-        { type: 'text', text: `Analyze this post for fabricated hadiths:\n"""\n${postText}\n"""\n\n${langInstruction}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith` }
+        { type: 'text', text: `Analyze this post for fabricated hadiths:\n"""\n${postText}\n"""\n\n${langInstruction}\n\nReply with ONLY this JSON: ${jsonTemplate}\nverdict must be: fabricated, weak, authentic, unclear, or no_hadith\nCRITICAL: Always include at least 2 real references with real URLs from sunnah.com, dorar.net, or islamqa.info. Never return an empty references array.` }
       ]
     }
 
