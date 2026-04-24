@@ -53,6 +53,66 @@ async function sendAlerts(result: any, lang: string, postText: string) {
 }
 
 const SYSTEM_PROMPT = `You are an Islamic hadith authentication expert with deep knowledge of hadith sciences. When given an image, extract ALL text visible then analyze it. When given text, analyze directly. Analyze for fabricated or weak hadiths attributed to Prophet Muhammad. Respond ONLY with valid JSON. No markdown, no backticks, no text outside JSON. For suggested_comment, never include specific hadith numbers or deep links as references. Instead direct users to sunnah.com and islamqa.info as general trusted sources to verify.`
+// ─── Security Layer ──────────────────────────────────────────
+const TRUSTED_DOMAINS = [
+  'sunnah.com', 'dorar.net', 'hadeethenc.com',
+  'islamqa.info', 'islamweb.net', 'yaqeeninstitute.org', 'islamhouse.com',
+]
+
+function sanitizeInput(text: string): { safe: boolean; sanitized: string; reason?: string } {
+  if (text.length > 5000) {
+    return { safe: false, sanitized: '', reason: 'Input too long (max 5000 chars)' }
+  }
+  const injectionPatterns = [
+    /ignore\s+(all\s+)?previous\s+instructions/i,
+    /override\s+verdict/i,
+    /new\s+instruction[s]?:/i,
+    /system\s*:/i,
+    /you\s+are\s+now\s+a/i,
+    /forget\s+your\s+rules/i,
+  ]
+  let sanitized = text
+  for (const pattern of injectionPatterns) {
+    if (pattern.test(sanitized)) {
+      console.warn(`[Security] Injection pattern detected: ${pattern}`)
+      sanitized = sanitized.replace(pattern, '[removed]')
+    }
+  }
+  sanitized = sanitized.replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' ')
+  return { safe: true, sanitized }
+}
+
+function validateOutput(result: any): string[] {
+  const errors: string[] = []
+  const VALID_VERDICTS = ['fabricated', 'weak', 'authentic', 'unclear', 'no_hadith']
+  const VALID_CONFIDENCE = ['high', 'medium', 'low']
+  const VALID_SEVERITY = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+
+  if (!VALID_VERDICTS.includes(result.verdict)) {
+    errors.push(`Invalid verdict: ${result.verdict}`)
+    result.verdict = 'unclear'
+  }
+  if (!VALID_CONFIDENCE.includes(result.confidence)) {
+    errors.push(`Invalid confidence: ${result.confidence}`)
+    result.confidence = 'low'
+  }
+  if (result.severity && !VALID_SEVERITY.includes(result.severity)) {
+    errors.push(`Invalid severity: ${result.severity}`)
+    result.severity = 'LOW'
+  }
+  if (Array.isArray(result.references)) {
+    result.references = result.references.filter((ref: any) => {
+      if (!ref.url?.startsWith('https://')) return false
+      if (ref.url.includes('undefined') || ref.url.includes('null')) return false
+      return TRUSTED_DOMAINS.some(d => ref.url.includes(d))
+    })
+  }
+  if (!result.suggested_comment || result.suggested_comment.length < 20) {
+    errors.push('suggested_comment too short')
+    result.suggested_comment = 'Assalamu alaykum. Please verify this content with sunnah.com'
+  }
+  if (errors.length > 0) console.warn('[OutputValidation]', errors)
+  return errors
 
 export async function POST(req: NextRequest) {
   try {
@@ -81,7 +141,12 @@ export async function POST(req: NextRequest) {
     if (!postText?.trim() && !imageBase64) {
       return NextResponse.json({ error: 'Post text or image is required' }, { status: 400 })
     }
-
+    // SECURITY: Sanitize input
+    if (postText) {
+      const { safe, sanitized, reason } = sanitizeInput(postText)
+      if (!safe) return NextResponse.json({ error: reason }, { status: 400 })
+      postText = sanitized
+    }
     // ─── FIXED: All fields now respond in the selected language ───
     const langInstruction =
       lang === 'uz'
@@ -129,6 +194,10 @@ export async function POST(req: NextRequest) {
     // Calculate severity
     const severity = calculateSeverity(result.verdict, result.confidence, result.red_flags)
     result.severity = severity
+    // Normalize arrays + validate output
+    if (!Array.isArray(result.references)) result.references = []
+    if (!Array.isArray(result.red_flags)) result.red_flags = []
+    validateOutput(result)
 
     // Save to Supabase
     const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -165,4 +234,4 @@ export async function POST(req: NextRequest) {
     console.error('Error:', error?.message)
     return NextResponse.json({ error: 'Analysis failed: ' + (error?.message || 'unknown') }, { status: 500 })
   }
-}
+}}
