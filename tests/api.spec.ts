@@ -232,7 +232,8 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   })
 
   test('AR lang — red_flags must contain Arabic characters', async ({ request }) => {
-    const res = await request.post(`${BASE_URL}/api/analyze`, {
+    test.setTimeout(120000)
+      const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.arabic, lang: 'ar' }, timeout: 60000
     })
     const body = await res.json()

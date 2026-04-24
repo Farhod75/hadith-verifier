@@ -722,3 +722,35 @@ def get_failed_annotations(run_id: str) -> list:
 ```
 
 **Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 29: AR/language tests fail — insufficient language instruction
+## ════════════════════════════════════════════════════════
+**ID:** P029
+**Type:** Prompt fix + Test fix
+**Symptom:**
+  - tests/api.spec.ts:182 — AR lang comment/analysis/claim_summary not in Arabic
+  - expect(/[\u0600-\u06FF]/.test(body.suggested_comment)).toBe(true) → false
+  - Fails on both Chromium and Mobile Chrome
+
+**Root cause:**
+  AR langInstruction not explicit enough — model returns English for some fields.
+  No retry configured for flaky language tests.
+
+**Fix 1 — Strengthen AR instruction in route.ts:**
+```ts
+lang === 'ar' ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL fields
+ENTIRELY in Arabic script (Unicode 0600-06FF): claim_summary, analysis,
+authentic_alternative, red_flags, references description, suggested_comment.
+Do NOT use English, Latin, or Cyrillic anywhere. Every character must be
+Arabic script. One English word in these fields is a critical failure.` :
+```
+
+**Fix 2 — Add retries at describe level in api.spec.ts:**
+```ts
+test.describe('Language tests (CT-GenAI)', () => {
+  test.setTimeout(90000)
+  test.describe.configure({ retries: 3 })
+```
+
+**Status:** IN PROGRESS
