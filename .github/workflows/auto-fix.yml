@@ -2,7 +2,7 @@ name: Playwright Auto-Fix Agent
 
 on:
   workflow_run:
-    workflows: ["Playwright Tests"]
+    workflows: ["Hadith Verifier CI/CD"]
     types: [completed]
 
 jobs:
