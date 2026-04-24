@@ -8,7 +8,7 @@ import {
   type Confidence
 } from './fixtures/test-data'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'https://hadith-verifier-vp57.vercel.app'
 
 test.describe('POST /api/analyze — Request validation', () => {
   test('should return 400 when postText is empty', async ({ request }) => {
@@ -26,7 +26,7 @@ test.describe('POST /api/analyze — Request validation', () => {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'en' },
       timeout: 60000
     })
-    expect(res.status()).toBe(999)
+    expect(res.status()).toBe(200)
   })
 })
 
