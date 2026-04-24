@@ -581,3 +581,144 @@ Template:
 **Fix:** Code or steps
 **Status:** FIXED | IN PROGRESS | DOCUMENTED
 ```
+
+## ════════════════════════════════════════════════════════
+## PATTERN 24: GitHub Actions 403 — not permitted to create PRs
+## ════════════════════════════════════════════════════════
+**ID:** P024
+**Type:** Infrastructure (GitHub Actions permissions)
+**Commit:** fix: correct workflow name in auto-fix trigger
+**Symptom:**
+  - Agent log: "GitHub Actions is not permitted to create or approve pull requests"
+  - Error: 403 on POST to /repos/{repo}/pulls
+  - Agent runs successfully but PR creation fails
+
+**Root cause:**
+  GitHub Actions workflow permissions default to read-only.
+  The auto-fix agent needs write access to create PRs.
+
+**Fix:**
+  1. Go to github.com/{repo} → Settings → Actions → General
+  2. Scroll to "Workflow permissions"
+  3. Select "Read and write permissions"
+  4. Check "Allow GitHub Actions to create and approve pull requests"
+  5. Click Save
+
+**Status:** FIXED
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 25: workflow_run trigger name mismatch
+## ════════════════════════════════════════════════════════
+**ID:** P025
+**Type:** CI/CD fix (GitHub Actions)
+**Symptom:**
+  - Auto-Fix Agent never triggers after test failures
+  - No agent workflow run appears in Actions tab
+
+**Root cause:**
+  workflow_run trigger requires EXACT match of the workflow name.
+  auto-fix.yml had "Playwright Tests" but actual CI workflow is
+  named "Hadith Verifier CI/CD".
+
+**Fix in .github/workflows/auto-fix.yml:**
+```yaml
+on:
+  workflow_run:
+    workflows: ["Hadith Verifier CI/CD"]  # must match exactly
+    types: [completed]
+```
+
+**Rule:** Always check the exact workflow name in the Actions tab
+  before setting workflow_run trigger.
+
+**Status:** FIXED
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 26: NameError — self in standalone Python function
+## ════════════════════════════════════════════════════════
+**ID:** P026
+**Type:** Python agent fix
+**Symptom:**
+  - Agent log: "NameError: name 'self' is not defined"
+  - Agent crashes at get_failed_annotations(run_id) call
+
+**Root cause:**
+  Function was defined as def get_failed_annotations(self, run_id)
+  but called as a standalone function without a class instance.
+  Mixed class-style and standalone function styles in same file.
+
+**Fix — remove self from all standalone functions:**
+```python
+# WRONG:
+def get_failed_annotations(self, run_id: str) -> list[dict]:
+
+# RIGHT:
+def get_failed_annotations(run_id: str) -> list:
+```
+  Also remove all self. prefixes from function calls.
+  Do NOT use class structure in playwright_agent.py — use standalone functions only.
+
+**Status:** FIXED
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 27: Deprecated model warning — claude-sonnet-4-20250514
+## ════════════════════════════════════════════════════════
+**ID:** P027
+**Type:** Infrastructure (model version)
+**Symptom:**
+  - Agent log: "DeprecationWarning: The model 'claude-sonnet-4-20250514'
+    is deprecated and will reach end-of-life on June 15th, 2026"
+
+**Root cause:**
+  Model string claude-sonnet-4-20250514 is being deprecated.
+  Current recommended model is claude-sonnet-4-6.
+
+**Fix in agents/playwright_agent.py:**
+```python
+MODEL = "claude-sonnet-4-6"
+```
+
+**Fix in app/api/analyze/route.ts:**
+```ts
+model: 'claude-sonnet-4-6',
+```
+
+**Status:** PENDING — update before June 15, 2026
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 28: GitHub annotations 404 — wrong endpoint
+## ════════════════════════════════════════════════════════
+**ID:** P028
+**Type:** Python agent fix
+**Symptom:**
+  - Agent log: "requests.exceptions.HTTPError: 404 Client Error:
+    Not Found for url: .../actions/runs/{id}/annotations"
+
+**Root cause:**
+  GitHub API does not expose annotations directly on the run.
+  Annotations are on individual check-run jobs, not the workflow run.
+
+**Fix — use jobs endpoint then check-runs:**
+```python
+def get_failed_annotations(run_id: str) -> list:
+    # Step 1: get jobs for this run
+    jobs_url = f"{GITHUB_API}/repos/{REPO}/actions/runs/{run_id}/jobs"
+    jobs = requests.get(jobs_url, headers=get_headers()).json().get("jobs", [])
+
+    # Step 2: get annotations per job
+    annotations = []
+    for job in jobs:
+        ann_url = f"{GITHUB_API}/repos/{REPO}/check-runs/{job['id']}/annotations"
+        ann_response = requests.get(ann_url, headers=get_headers())
+        if ann_response.status_code == 200:
+            failed = [a for a in ann_response.json()
+                     if a.get("annotation_level") == "failure"]
+            annotations.extend(failed)
+    return annotations
+```
+
+**Status:** FIXED
