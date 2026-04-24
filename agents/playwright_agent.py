@@ -25,7 +25,7 @@ from datetime import datetime
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 REPO = "Farhod75/hadith-verifier"
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-sonnet-4-20250514"
 GITHUB_API = "https://api.github.com"
 
 # Files the agent is allowed to modify
@@ -154,7 +154,7 @@ def analyze_and_fix(run_id: str):
     print(f"[Agent] Starting Playwright Agent for run: {run_id}")
 
     # Step 1: Get failed annotations
-    annotations = get_failed_annotations(run_id)
+    annotations = self.get_failed_annotations(run_id)
     if not annotations:
         print("[Agent] No failed annotations found. Nothing to fix.")
         return
