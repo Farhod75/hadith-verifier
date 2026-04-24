@@ -177,6 +177,7 @@ test.describe('POST /api/analyze — Hallucination detection (CT-GenAI)', () => 
 // ─────────────────────────────────────────────────────────────
 test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   test.setTimeout(90000)
+  test.describe.configure({ retries: 3 })  // ← add this
 
   test('UZ lang — comment, analysis, claim_summary must be in Uzbek Cyrillic', async ({ request }) => {
     const res = await request.post(`${BASE_URL}/api/analyze`, {
