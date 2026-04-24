@@ -113,8 +113,8 @@ function validateOutput(result: any): string[] {
   }
   if (errors.length > 0) console.warn('[OutputValidation]', errors)
   return errors
-
-export async function POST(req: NextRequest) {
+}
+ export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') || ''
     let postText = ''
@@ -234,4 +234,4 @@ export async function POST(req: NextRequest) {
     console.error('Error:', error?.message)
     return NextResponse.json({ error: 'Analysis failed: ' + (error?.message || 'unknown') }, { status: 500 })
   }
-}}
+}
