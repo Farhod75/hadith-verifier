@@ -25,7 +25,7 @@ from datetime import datetime
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 REPO = "Farhod75/hadith-verifier"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-6"
 GITHUB_API = "https://api.github.com"
 
 # Files the agent is allowed to modify
