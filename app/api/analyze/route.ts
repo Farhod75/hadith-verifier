@@ -107,10 +107,7 @@ function validateOutput(result: any): string[] {
       return TRUSTED_DOMAINS.some(d => ref.url.includes(d))
     })
   }
-  if (!result.suggested_comment || result.suggested_comment.length < 20) {
-    errors.push('suggested_comment too short')
-    result.suggested_comment = 'Assalamu alaykum. Please verify this content with sunnah.com'
-  }
+  
   if (errors.length > 0) console.warn('[OutputValidation]', errors)
   return errors
 }
