@@ -59,15 +59,25 @@ def get_headers():
     }
 
 
-def get_failed_annotations(run_id: str) -> list[dict]:
-    """Fetch failed annotations from a GitHub Actions run."""
-    url = f"{GITHUB_API}/repos/{REPO}/actions/runs/{run_id}/annotations"
-    response = requests.get(url, headers=get_headers())
-    response.raise_for_status()
-    annotations = response.json()
-    failed = [a for a in annotations if a.get("annotation_level") == "failure"]
-    print(f"[Agent] Found {len(failed)} failed annotations")
-    return failed
+def get_failed_annotations(self, run_id: str) -> list[dict]:
+    # First get jobs for this run
+    jobs_url = f"{GITHUB_API}/repos/{REPO}/actions/runs/{run_id}/jobs"
+    jobs_response = requests.get(jobs_url, headers=get_headers())
+    jobs_response.raise_for_status()
+    jobs = jobs_response.json().get('jobs', [])
+    
+    # Then get annotations for each job
+    annotations = []
+    for job in jobs:
+        job_id = job['id']
+        ann_url = f"{GITHUB_API}/repos/{REPO}/check-runs/{job_id}/annotations"
+        ann_response = requests.get(ann_url, headers=get_headers())
+        if ann_response.status_code == 200:
+            failed = [a for a in ann_response.json() 
+                     if a.get('annotation_level') == 'failure']
+            annotations.extend(failed)
+    
+    return annotations
 
 
 def get_git_fix_history() -> str:
