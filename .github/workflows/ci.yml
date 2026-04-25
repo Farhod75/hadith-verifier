@@ -10,7 +10,7 @@ jobs:
   test:
     name: Playwright Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
 
     steps:
       - name: Checkout code
@@ -28,46 +28,16 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Create .env.local for tests
-        run: |
-          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" > .env.local
-          echo "NEXT_PUBLIC_SUPABASE_URL=" >> .env.local
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=" >> .env.local
-          echo "SLACK_WEBHOOK_URL=" >> .env.local
-
-      - name: Build Next.js app
-        run: npm run build
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-      - name: Start Next.js server
-        run: npm run start &
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PORT: 3000
-
-      - name: Wait for server to be ready
-        run: |
-          echo "Waiting for server..."
-          for i in {1..30}; do
-            if curl -s http://localhost:3000 > /dev/null; then
-              echo "Server is ready!"
-              break
-            fi
-            echo "Attempt $i - waiting..."
-            sleep 2
-          done
-
       - name: Run API tests
-        run: npx playwright test tests/api.spec.ts --reporter=list
+        run: npx playwright test tests/api.spec.ts --reporter=list --workers=1
         env:
-          BASE_URL: http://localhost:3000
+          BASE_URL: https://hadithverifier.com
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Run E2E tests
-        run: npx playwright test tests/hadith-verifier.spec.ts --reporter=list
+        run: npx playwright test tests/hadith-verifier.spec.ts --reporter=list --workers=1
         env:
-          BASE_URL: http://localhost:3000
+          BASE_URL: https://hadithverifier.com
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Upload Playwright report
