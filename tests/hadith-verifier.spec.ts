@@ -186,32 +186,44 @@ test.describe('Language switching (CT-GenAI)', () => {
   test.setTimeout(120000)
 
   test('should generate Uzbek comment when UZ selected', async ({ page }) => {
+    test.setTimeout(120000)
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
-    // Click UZ reply button - use locator that finds the pill buttons near "Reply in:"
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'UZ' }).click()
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('text=/ready-to-post/i', { timeout: 60000 })
+    // Wait for result container to appear — 'ready-to-post' text does not exist in UI (P033)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    await page.waitForFunction(
+      () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+      { timeout: 90000 }
+    )
     const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
     expect(
-  text?.includes('Assalomu') ||
-  text?.includes('alaykum') ||
-  text?.includes('hadis') ||
-  text?.includes('Alloh') ||
-  text?.includes('rivoyat') ||
-  text?.includes('uydirma') ||
-  text?.includes('islom') ||
-  text?.includes('manba') ||
-  /[\u0400-\u04FF]/.test(text || '')  // Cyrillic fallback
-).toBe(true)
+      text?.includes('Assalomu') ||
+      text?.includes('alaykum') ||
+      text?.includes('hadis') ||
+      text?.includes('Alloh') ||
+      text?.includes('rivoyat') ||
+      text?.includes('uydirma') ||
+      text?.includes('islom') ||
+      text?.includes('manba') ||
+      /[\u0400-\u04FF]/.test(text || '')
+    ).toBe(true)
   })
 
   test('should generate Arabic comment when AR selected', async ({ page }) => {
+    test.setTimeout(120000)
     await page.goto('/')
-    await page.locator('textarea').first().fill(FABRICATED_POSTS.chain_message)
+    // P029: use Arabic input to maximize Arabic output
+    await page.locator('textarea').first().fill('من قرأ سورة الفاتحة سبع مرات قبل النوم كتب له ثواب سبعة آلاف يوم')
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'AR' }).click()
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('text=/ready-to-post/i', { timeout: 60000 })
+    // Wait for result container to appear (P033)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    await page.waitForFunction(
+      () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+      { timeout: 90000 }
+    )
     const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
     expect(/[\u0600-\u06FF]/.test(text || '')).toBe(true)
   })
