@@ -185,7 +185,7 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
     })
     const body = await res.json()
 
-    // Check ANY field contains Uzbek/Cyrillic content
+// Check ANY field contains Uzbek/Cyrillic content
     const allContent = [
       body.suggested_comment || '',
       body.analysis || '',
@@ -201,7 +201,8 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
       allContent.toLowerCase().includes('rivoyat') ||
       allContent.toLowerCase().includes('sahih')
 
-      expect(hasUzbekContent).toBe(true)
+    expect(hasUzbekContent).toBe(true)
+  })
 
   test('UZ lang — red_flags must be in Uzbek Cyrillic', async ({ request }) => {
     const res = await request.post(`${BASE_URL}/api/analyze`, {
