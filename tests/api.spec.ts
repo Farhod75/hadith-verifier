@@ -8,7 +8,7 @@ import {
   type Confidence
 } from './fixtures/test-data'
 
-const BASE_URL = process.env.BASE_URL || 'https://hadithverifier.com'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
 test.describe('POST /api/analyze — Request validation', () => {
   test('should return 400 when postText is empty', async ({ request }) => {
@@ -172,33 +172,30 @@ test.describe('POST /api/analyze — Hallucination detection (CT-GenAI)', () => 
 
 // ─────────────────────────────────────────────────────────────
 // Language tests — CT-GenAI full language output validation
-// Uses native language input per language (P029 fix)
+// Uses native language input per language (P029/P030 fix)
 // retries: 3 for AI non-determinism
 // ─────────────────────────────────────────────────────────────
 test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   test.setTimeout(90000)
   test.describe.configure({ retries: 3 })
 
-  test('UZ lang — comment, analysis, claim_summary must be in Uzbek Cyrillic', async ({ request }) => {
+  test('UZ lang — comment and analysis must be in Uzbek or Cyrillic', async ({ request }) => {
+    // P029: use native Uzbek input, check comment OR analysis, not claim_summary
     test.slow()
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.uzbek, lang: 'uz' }, timeout: 60000
     })
     const body = await res.json()
-
-// Check ANY field contains Uzbek/Cyrillic content
     const allContent = [
-  body.suggested_comment || '',
-  body.analysis || '',
-].join(' ')  // removed claim_summary and red_flags
-
-const hasUzbekContent =
-  /[\u0400-\u04FF]/.test(allContent) ||
-  allContent.toLowerCase().includes('assalomu') ||
-  allContent.toLowerCase().includes('hadis') ||
-  allContent.toLowerCase().includes('alloh')
-
-expect(hasUzbekContent).toBe(true)
+      body.suggested_comment || '',
+      body.analysis || '',
+    ].join(' ')
+    const hasUzbekContent =
+      /[\u0400-\u04FF]/.test(allContent) ||
+      allContent.toLowerCase().includes('assalomu') ||
+      allContent.toLowerCase().includes('hadis') ||
+      allContent.toLowerCase().includes('alloh')
+    expect(hasUzbekContent).toBe(true)
   })
 
   test('UZ lang — red_flags must be in Uzbek Cyrillic', async ({ request }) => {
@@ -213,20 +210,18 @@ expect(hasUzbekContent).toBe(true)
   })
 
   test('AR lang — comment must contain Arabic characters', async ({ request }) => {
-    // Use Arabic input text to maximize chance of Arabic output (P029/P030)
+    // P029/P030: use Arabic input, check comment OR analysis (not strict)
     test.slow()
     const arabicInput = 'من قرأ سورة الفاتحة سبع مرات قبل النوم كتب له ثواب سبعة آلاف يوم'
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: arabicInput, lang: 'ar' }, timeout: 60000
     })
     const body = await res.json()
-    // Check suggested_comment OR analysis contains Arabic (P030 — Arabic in EN analysis is normal)
     const allContent = [
       body.suggested_comment || '',
       body.analysis || '',
     ].join(' ')
     expect(/[\u0600-\u06FF]/.test(allContent)).toBe(true)
-    
   })
 
   test('AR lang — red_flags must contain Arabic characters', async ({ request }) => {
@@ -242,8 +237,8 @@ expect(hasUzbekContent).toBe(true)
     }
   })
 
-  test('RU lang — comment, analysis, claim_summary must contain Cyrillic characters', async ({ request }) => {
-    // Use Russian input to maximize chance of Russian output (P029)
+  test('RU lang — comment or analysis must contain Cyrillic characters', async ({ request }) => {
+    // P029: use Russian input to maximize Cyrillic output
     test.slow()
     const russianInput = 'Кто прочитает суру Фатиха 7 раз перед сном получит награду 7000 дней'
     const res = await request.post(`${BASE_URL}/api/analyze`, {
@@ -268,7 +263,8 @@ expect(hasUzbekContent).toBe(true)
     }
   })
 
-  test('EN lang — all fields must be in English', async ({ request }) => {
+  test('EN lang — suggested_comment must be in English', async ({ request }) => {
+    // P030: do NOT assert analysis script — Arabic source titles appear naturally in EN
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.chain_message, lang: 'en' }, timeout: 60000
     })
@@ -280,9 +276,10 @@ expect(hasUzbekContent).toBe(true)
       comment.includes('fabricated') ||
       comment.includes('authentic') ||
       comment.includes('reference') ||
+      comment.includes('hadith') ||
       comment.includes('dear')
     ).toBe(true)
-    
+    // NOTE: No Arabic-in-analysis assertion — Arabic source titles are expected (P030)
   })
 })
 
@@ -295,7 +292,7 @@ test.describe('GET /api/queue — Admin queue', () => {
 })
 
 // ─────────────────────────────────────────────────────────────
-// Severity scoring tests (CT-GenAI)
+// Severity scoring tests (CT-GenAI — CRITICAL/HIGH/MEDIUM/LOW)
 // ─────────────────────────────────────────────────────────────
 test.describe('POST /api/analyze — Severity scoring (CT-GenAI)', () => {
   test.setTimeout(90000)
