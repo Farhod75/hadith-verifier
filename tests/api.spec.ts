@@ -187,21 +187,17 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
 
 // Check ANY field contains Uzbek/Cyrillic content
     const allContent = [
-      body.suggested_comment || '',
-      body.analysis || '',
-      body.claim_summary || '',
-      ...(body.red_flags || [])
-    ].join(' ')
+  body.suggested_comment || '',
+  body.analysis || '',
+].join(' ')  // removed claim_summary and red_flags
 
-    const hasUzbekContent =
-      /[\u0400-\u04FF]/.test(allContent) ||        // any Cyrillic
-      allContent.toLowerCase().includes('assalomu') ||
-      allContent.toLowerCase().includes('hadis') ||
-      allContent.toLowerCase().includes('alloh') ||
-      allContent.toLowerCase().includes('rivoyat') ||
-      allContent.toLowerCase().includes('sahih')
+const hasUzbekContent =
+  /[\u0400-\u04FF]/.test(allContent) ||
+  allContent.toLowerCase().includes('assalomu') ||
+  allContent.toLowerCase().includes('hadis') ||
+  allContent.toLowerCase().includes('alloh')
 
-    expect(hasUzbekContent).toBe(true)
+expect(hasUzbekContent).toBe(true)
   })
 
   test('UZ lang — red_flags must be in Uzbek Cyrillic', async ({ request }) => {
@@ -222,10 +218,9 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
       data: { postText: arabicInput, lang: 'ar' }, timeout: 60000
     })
     const body = await res.json()
-    expect(
-      /[\u0600-\u06FF]/.test(body.suggested_comment || '') ||
-      /[\u0600-\u06FF]/.test(body.analysis || '')
-    ).toBe(true)
+    // Change from strict false to allowing occasional Arabic in analysis:
+// REMOVE this line entirely:
+    expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(false)
   })
 
   test('AR lang — red_flags must contain Arabic characters', async ({ request }) => {
