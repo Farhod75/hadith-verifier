@@ -177,7 +177,7 @@ test.describe('POST /api/analyze — Hallucination detection (CT-GenAI)', () => 
 // ─────────────────────────────────────────────────────────────
 test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   test.setTimeout(90000)
-  test.describe.configure({ retries: 3 })
+  test.describe.configure({ retries: 1 })
 
   test('UZ lang — comment and analysis must be in Uzbek or Cyrillic', async ({ request }) => {
     // P029: use native Uzbek input, check comment OR analysis, not claim_summary
