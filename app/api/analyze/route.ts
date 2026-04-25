@@ -187,6 +187,9 @@ function validateOutput(result: any): string[] {
       if (jsonStart !== -1 && jsonEnd !== -1) {
         jsonStr = jsonStr.slice(jsonStart, jsonEnd + 1)
       }
+      // Strip special Unicode chars like ﷺ (U+FDFD) that break JSON.parse (P032)
+      jsonStr = jsonStr.replace(/[\uFDD0-\uFDEF\uFFF0-\uFFFF]/g, '')
+      jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F]/g, ' ')
       result = JSON.parse(jsonStr)
       // Normalize — AI occasionally returns null/object instead of array
       if (!Array.isArray(result.references)) result.references = []
