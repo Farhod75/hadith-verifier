@@ -154,7 +154,7 @@ function validateOutput(result: any): string[] {
         : lang === 'tj' ? `CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL fields ENTIRELY in Tajik Cyrillic. Do NOT use Uzbek words or phrases anywhere — especially avoid Uzbek phrases like "ташриф буюринг", "марҳамат қилинг", "илтимос". Use Tajik equivalents instead: say "барои дидан гузаред" or "ба манба муроҷиат кунед" instead of "ташриф буюринг". Fields to write in Tajik: claim_summary, analysis, authentic_alternative, red_flags (every item), references (description field only), and suggested_comment. Every single sentence must be in Tajik. When referring to the Prophet write (с.а.в). Only keep JSON field names, source names, URLs, and verdict/confidence/severity values in English.` 
         : `Write ALL text fields (claim_summary, analysis, authentic_alternative, red_flags, suggested_comment) in English.`
 
-    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith or ruling","url":"https://sunnah.com/bukhari:574","authority":"tier1"},{"source":"Dorar.net","description":"hadith grading and analysis","url":"https://dorar.net/hadith/sharh/12345","authority":"tier1"}],"suggested_comment":"compassionate reply with greeting correction source URL dua closing"}`
+    const jsonTemplate = `{"extracted_text":"if image provided paste ALL text from image here otherwise empty string","verdict":"fabricated","confidence":"high","claim_summary":"one sentence","red_flags":["flag1","flag2"],"analysis":"2-3 sentences","authentic_alternative":"what authentic sources say","references":[{"source":"Sunnah.com","description":"relevant hadith or ruling","url":"https://sunnah.com/bukhari","authority":"tier1"},{"source":"Dorar.net","url":"https://dorar.net/hadith","authority":"tier1"}],"suggested_comment":"compassionate reply"}`
 
     let messageContent: any[]
     if (imageBase64) {
@@ -170,7 +170,7 @@ function validateOutput(result: any): string[] {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      max_tokens: imageBase64 ? 3000 : 2048,
       temperature: 0,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: messageContent }]
