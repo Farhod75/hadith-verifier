@@ -170,14 +170,14 @@ function validateOutput(result: any): string[] {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      max_tokens: 2048,
       temperature: 0,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: messageContent }]
     })
 
     const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
-    console.log('RAW CLAUDE RESPONSE:', raw.substring(0, 500))  // ← add this
+    
     let result
     try {
       // Robust JSON extraction — handles Cyrillic/Arabic preamble before JSON (P032)
