@@ -179,7 +179,14 @@ function validateOutput(result: any): string[] {
     const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
     let result
     try {
-      result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      // Robust JSON extraction — handles Cyrillic/Arabic preamble before JSON (P032)
+      let jsonStr = raw.replace(/```json|```/g, '').trim()
+      const jsonStart = jsonStr.indexOf('{')
+      const jsonEnd = jsonStr.lastIndexOf('}')
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        jsonStr = jsonStr.slice(jsonStart, jsonEnd + 1)
+      }
+      result = JSON.parse(jsonStr)
       // Normalize — AI occasionally returns null/object instead of array
       if (!Array.isArray(result.references)) result.references = []
       if (!Array.isArray(result.red_flags))  result.red_flags  = []
