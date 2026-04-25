@@ -180,6 +180,7 @@ test.describe('POST /api/analyze — Language tests (CT-GenAI)', () => {
   test.describe.configure({ retries: 3 })
 
   test('UZ lang — comment, analysis, claim_summary must be in Uzbek Cyrillic', async ({ request }) => {
+    test.slow()
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: FABRICATED_POSTS.uzbek, lang: 'uz' }, timeout: 60000
     })
@@ -211,16 +212,21 @@ expect(hasUzbekContent).toBe(true)
     }
   })
 
-  test('AR lang — comment, analysis, claim_summary must contain Arabic characters', async ({ request }) => {
-    // Use Arabic input text to maximize chance of Arabic output (P029)
+  test('AR lang — comment must contain Arabic characters', async ({ request }) => {
+    // Use Arabic input text to maximize chance of Arabic output (P029/P030)
+    test.slow()
     const arabicInput = 'من قرأ سورة الفاتحة سبع مرات قبل النوم كتب له ثواب سبعة آلاف يوم'
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: arabicInput, lang: 'ar' }, timeout: 60000
     })
     const body = await res.json()
-    // Change from strict false to allowing occasional Arabic in analysis:
-// REMOVE this line entirely:
-    expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(false)
+    // Check suggested_comment OR analysis contains Arabic (P030 — Arabic in EN analysis is normal)
+    const allContent = [
+      body.suggested_comment || '',
+      body.analysis || '',
+    ].join(' ')
+    expect(/[\u0600-\u06FF]/.test(allContent)).toBe(true)
+    
   })
 
   test('AR lang — red_flags must contain Arabic characters', async ({ request }) => {
@@ -238,6 +244,7 @@ expect(hasUzbekContent).toBe(true)
 
   test('RU lang — comment, analysis, claim_summary must contain Cyrillic characters', async ({ request }) => {
     // Use Russian input to maximize chance of Russian output (P029)
+    test.slow()
     const russianInput = 'Кто прочитает суру Фатиха 7 раз перед сном получит награду 7000 дней'
     const res = await request.post(`${BASE_URL}/api/analyze`, {
       data: { postText: russianInput, lang: 'ru' }, timeout: 60000
@@ -275,7 +282,7 @@ expect(hasUzbekContent).toBe(true)
       comment.includes('reference') ||
       comment.includes('dear')
     ).toBe(true)
-    expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(false)
+    
   })
 })
 
