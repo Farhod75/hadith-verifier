@@ -230,7 +230,8 @@ test.describe('Language switching (CT-GenAI)', () => {
 
   test('should generate Russian comment when RU selected', async ({ page }) => {
     await page.goto('/')
-    await page.locator('textarea').first().fill(FABRICATED_POSTS.chain_message)
+    // P029: use Russian input to maximize Cyrillic output
+    await page.locator('textarea').first().fill('Кто прочитает суру Фатиха 7 раз перед сном получит награду 7000 дней')
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'RU' }).click()
     await page.locator('button.bg-emerald-700').first().click()
     await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
