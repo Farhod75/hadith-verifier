@@ -177,6 +177,7 @@ function validateOutput(result: any): string[] {
     })
 
     const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
+    console.log('RAW CLAUDE RESPONSE:', raw.substring(0, 500))  // ← add this
     let result
     try {
       // Robust JSON extraction — handles Cyrillic/Arabic preamble before JSON (P032)
