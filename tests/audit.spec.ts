@@ -29,12 +29,14 @@ const TRUSTED_DOMAINS = [
 ]
 
 // ─── Islamic greeting indicators per language ──────────────────────────────────
+// REPLACE WITH — expanded variants (P036):
 const GREETING_INDICATORS: Record<string, string[]> = {
-  en:  ['Assalamu', 'assalamu', 'Peace', 'Dear'],
-  uz:  ['Assalomu', 'assalomu', 'Ассалому'],
-  ar:  ['السلام', 'عليكم', 'أخي', 'أختي'],
-  ru:  ['Ассаляму', 'Уважаем', 'Дорог'],
-  tj:  ['Ассалому', 'Бародар', 'Хоҳар'],
+  en:  ['Assalamu', 'assalamu', 'Peace be', 'Dear', 'Greetings', 'Hello'],
+  uz:  ['Assalomu', 'assalomu', 'Ассалому', 'Ассаламу', 'ассалому', 'Hurmatli', 'hurmatli',
+        'Муҳтарам', 'Азиз', 'азиз', 'Bismillah', 'bismillah'],
+  ar:  ['السلام', 'عليكم', 'أخي', 'أختي', 'بسم', 'الله'],
+  ru:  ['Ассаляму', 'ассаляму', 'Уважаем', 'Дорог', 'Мир вам', 'Приветств'],
+  tj:  ['Ассалому', 'ассалому', 'Бародар', 'Хоҳар', 'Ҳурматли'],
 }
 
 // ─── Prompt injection test payloads ───────────────────────────────────────────
