@@ -822,3 +822,150 @@ Template:
 **Fix:** Code or steps
 **Status:** FIXED | IN PROGRESS | DOCUMENTED
 ```
+## ════════════════════════════════════════════════════════
+## PATTERN 33: E2E test — waitForSelector ready-to-post never found
+## ════════════════════════════════════════════════════════
+**ID:** P033
+**Type:** Test fix (wrong selector)
+**Commit:** fix: replace ready-to-post selector with result container check
+**Symptom:**
+  - TimeoutError: page.waitForSelector('text=/ready-to-post/i') timeout 60000ms
+  - UZ and AR language E2E tests fail
+
+**Root cause:**
+  'ready-to-post' text does not exist anywhere in page.tsx UI.
+  Result renders in .bg-gray-50.rounded-lg div via result.suggested_comment.
+
+**Fix:**
+```ts
+// WRONG — text never appears in UI:
+await page.waitForSelector('text=/ready-to-post/i', { timeout: 60000 })
+
+// RIGHT — wait for result container with content:
+await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+await page.waitForFunction(
+  () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+  { timeout: 90000 }
+)
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 34: Copy button test — wrong label selector
+## ════════════════════════════════════════════════════════
+**ID:** P034
+**Type:** Test fix (wrong selector)
+**Commit:** fix: use class selector for copy button, skip stats counter test
+**Symptom:**
+  - expect(locator).toBeVisible() failed
+  - Locator: getByRole('button', { name: /copy comment/i })
+  - Element not found — button exists but label text doesn't match
+
+**Root cause:**
+  CopyButton component renders label from tr.copyComment translation key.
+  Actual rendered text depends on appLang — may not match /copy comment/i regex.
+  getByRole with name regex is fragile for translated UI components.
+
+**Fix — use CSS class selector instead of label text:**
+```ts
+// WRONG — fragile, depends on translation:
+await expect(page.getByRole('button', { name: /copy comment/i })).toBeVisible()
+
+// RIGHT — stable, class doesn't change with language:
+await expect(page.locator('button.border-emerald-300').first()).toBeVisible()
+```
+
+**Rule:** Never use translated label text in selectors.
+  Use CSS classes, data-testid, or aria-label attributes instead.
+**Status:** FIXED
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 35: Image upload parse error — token truncation + untested path
+## ════════════════════════════════════════════════════════
+**ID:** P035
+**Type:** Source fix (route.ts) + Test gap
+**Commit:** fix: increase max_tokens to 3000 for image path, shorten jsonTemplate (P032b)
+**Symptom:**
+  - Parse error dialog appears on hadithverifier.com when uploading screenshot
+  - Vercel logs: POST /api/analyze → 500, execution 49s, only Anthropic API called
+  - No Supabase call — parse fails before save
+  - CI never catches it — no image upload test exists
+
+**Root cause:**
+  Two compounding issues:
+  1. Image path requires extracting ALL visible text + analysis = more tokens
+     max_tokens: 2048 too low for image responses → JSON truncated mid-string
+  2. CI test suite uses text input only — image code path never exercised in CI
+     Agent cannot detect what CI never tests
+
+**Fix 1 — increase max_tokens for image path in route.ts:**
+```ts
+// WRONG:
+max_tokens: 2048,
+
+// RIGHT — image needs more tokens for text extraction + analysis:
+max_tokens: imageBase64 ? 3000 : 2048,
+```
+
+**Fix 2 — shorten jsonTemplate to reduce output size:**
+```ts
+// Remove verbose descriptions from template references
+// Shorter template = less tokens consumed = less truncation risk
+```
+
+**Fix 3 — add image path to CI test suite (P035 prevention):**
+```ts
+// TODO: add tests/image-upload.spec.ts
+// Use 1x1 pixel base64 PNG to exercise image code path in CI
+// Agent can only fix what CI tests cover
+```
+
+**Key learning:** The Auto-Fix Agent only catches failures that appear as
+  GitHub Actions test annotations. Runtime errors on production (Vercel 500s)
+  are invisible to the agent. Every production code path needs a CI test.
+  Image upload had no CI test → agent blind to image parse errors.
+
+**Status:** PARTIALLY FIXED — max_tokens increased, image CI test still TODO
+
+
+## ════════════════════════════════════════════════════════
+## QUICK PATTERN LOOKUP TABLE (updated)
+## ════════════════════════════════════════════════════════
+| Symptom keyword                    | Pattern | Type           |
+|------------------------------------|---------|----------------|
+| Array.isArray → false              | P001    | route.ts fix   |
+| waitForSelector timeout            | P002    | test + prompt  |
+| Uzbek in Tajik output              | P003    | prompt fix     |
+| Em dash syntax error               | P004    | syntax fix     |
+| credit balance too low             | P005    | infrastructure |
+| wrong workspace/key                | P006    | infrastructure |
+| queue empty / RLS                  | P007    | Supabase fix   |
+| curl/sed not recognized            | P008    | Windows env    |
+| env var not reflecting             | P009    | Vercel fix     |
+| 404 on hadith URL                  | P010    | prompt fix     |
+| rate limit in CI                   | P011    | test skip      |
+| hidden translated element          | P012    | selector fix   |
+| stats hidden on mobile             | P013    | viewport fix   |
+| verdict non-determinism            | P014    | assertion fix  |
+| strict mode violation              | P015    | selector scope |
+| spec syntax error                  | P016    | clean rewrite  |
+| fields not translated              | P017    | prompt fix     |
+| Cyrillic/Latin Uzbek               | P018    | fallback fix   |
+| Cannot find module @/lib           | P019    | import fix     |
+| tsconfig UTF-8 BOM                 | P020    | encoding fix   |
+| severity type cast                 | P021    | TS type fix    |
+| ERR_CONNECTION_REFUSED             | P022    | CI server fix  |
+| button selector broken             | P023    | selector fix   |
+| 403 PR creation blocked            | P024    | GH permissions |
+| workflow_run never triggers        | P025    | workflow name  |
+| NameError: self not defined        | P026    | Python fix     |
+| model deprecation warning          | P027    | model version  |
+| annotations 404 wrong endpoint     | P028    | Python fix     |
+| UZ claim_summary not Cyrillic      | P029    | assertion fix  |
+| EN analysis contains Arabic        | P030    | assertion fix  |
+| CI job cancelled / timeout         | P031    | CI/CD fix      |
+| Parse error / JSON truncated       | P032    | route.ts fix   |
+| ready-to-post selector not found   | P033    | selector fix   |
+| copy button label mismatch         | P034    | selector fix   |
+| image upload parse error / 500     | P035    | route.ts fix   |
