@@ -28,6 +28,27 @@ test.describe('POST /api/analyze — Request validation', () => {
     })
     expect(res.status()).toBe(200)
   })
+
+  test('image upload path should not return parse error (P035)', async ({ request }) => {
+    // 1x1 transparent PNG — exercises image code path without real image content
+    // Ensures max_tokens and JSON extraction work for multipart/form-data requests
+    const pixel = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    )
+    const res = await request.post(`${BASE_URL}/api/analyze`, {
+      multipart: {
+        image: { name: 'test.png', mimeType: 'image/png', buffer: pixel },
+        lang: 'en'
+      },
+      timeout: 90000
+    })
+    expect(res.status()).toBe(200)
+    const body = await res.json()
+    // Must never return parse error (P035)
+    expect(body.error).toBeUndefined()
+    expect(['fabricated', 'weak', 'authentic', 'unclear', 'no_hadith']).toContain(body.verdict)
+  })
 })
 
 test.describe('POST /api/analyze — Response structure (CT-GenAI)', () => {
