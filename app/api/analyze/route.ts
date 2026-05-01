@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
+// ─── Rate Limiting ────────────────────────────────────────────
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT = 100
+const RATE_WINDOW_MS = 24 * 60 * 60 * 1000  // 24 hours
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetInHours: number } {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW_MS })
+    return { allowed: true, remaining: RATE_LIMIT - 1, resetInHours: 24 }
+  }
+
+  if (record.count >= RATE_LIMIT) {
+    const resetInHours = Math.ceil((record.resetTime - now) / 3600000)
+    return { allowed: false, remaining: 0, resetInHours }
+  }
+
+  record.count++
+  return { allowed: true, remaining: RATE_LIMIT - record.count, resetInHours: 24 }
+}
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 function calculateSeverity(verdict: string, confidence: string, redFlags: string[]): string {
@@ -144,6 +166,31 @@ function validateOutput(result: any): string[] {
       if (!safe) return NextResponse.json({ error: reason }, { status: 400 })
       postText = sanitized
     }
+
+    // ─── Rate Limit Check ─────────────────────────────────────────
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+               req.headers.get('x-real-ip') ||
+               'unknown'
+    const { allowed, remaining, resetInHours } = checkRateLimit(ip)
+    if (!allowed) {
+      return NextResponse.json({
+        error: 'Daily limit reached',
+        message_en: `JazakAllahu khayran for using Hadith Verifier! You have used your ${RATE_LIMIT} free daily verifications. Please return in ${resetInHours} hour(s). May Allah reward your effort to protect the Sunnah. 🤲`,
+        message_uz: `Hadith Verifier'dan foydalanganingiz uchun JazakAllahu xayran! Kunlik ${RATE_LIMIT} ta bepul tekshiruvingizdan foydalandingiz. ${resetInHours} soatdan so'ng qaytib keling. 🤲`,
+        message_ar: `جزاكم الله خيراً! لقد استخدمت ${RATE_LIMIT} فحصاً مجانياً يومياً. يرجى العودة خلال ${resetInHours} ساعة. 🤲`,
+        message_ru: `ДжазакАллаху хайран! Вы использовали ${RATE_LIMIT} бесплатных проверок. Возвращайтесь через ${resetInHours} час(а). 🤲`,
+        remaining: 0,
+        resetInHours
+      }, {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(RATE_LIMIT),
+          'X-RateLimit-Remaining': '0',
+          'Retry-After': String(resetInHours * 3600)
+        }
+      })
+    }
+
     // ─── FIXED: All fields now respond in the selected language ───
     const langInstruction =
       lang === 'uz'
@@ -235,7 +282,12 @@ function validateOutput(result: any): string[] {
       await sendAlerts(result, lang, postText)
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json(result, {        // ← line 285
+      headers: {
+        'X-RateLimit-Limit': String(RATE_LIMIT),
+        'X-RateLimit-Remaining': String(remaining),
+      }
+    })
 
   } catch (error: any) {
     console.error('Error:', error?.message)
