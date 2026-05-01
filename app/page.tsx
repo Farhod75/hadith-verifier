@@ -133,7 +133,8 @@ export default function Home() {
           uz: 'Kunlik so\'rov limiti tugadi. Ertaga qayta urinib ko\'ring.',
           ar: 'تم الوصول إلى الحد اليومي. يرجى المحاولة مرة أخرى غداً.',
           ru: 'Достигнут дневной лимит запросов. Попробуйте снова завтра.',
-          en: 'Daily limit reached. Please try again tomorrow.'
+          en: 'Daily limit reached. Please try again tomorrow.',
+          tj: 'Лимити рӯзонаи дархостҳо ба поён расид. Лутфан фардо дубора кӯшиш кунед.'
         }
         alert(limitMessages[replyLang] || limitMessages.en)
         setLoading(false)
