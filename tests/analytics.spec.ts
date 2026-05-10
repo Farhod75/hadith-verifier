@@ -1,7 +1,12 @@
 // tests/analytics.spec.ts
 // Google Analytics 4 — Script Loading Tests
 // Verifies GA4 tag (G-32J9GLEBKS) loads correctly in production
-
+declare global {
+  interface Window {
+    gtag: (...args: any[]) => void
+    dataLayer: any[]
+  }
+}
 import { test, expect } from '@playwright/test'
 
 const GA_ID = 'G-32J9GLEBKS'
