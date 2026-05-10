@@ -44,6 +44,26 @@ hadith-verifier/
 ├── telegram_bot.py
 ├── .env.local                      — never commit
 └── CLAUDE.md                       — this file
+
+## New components (May 2026)
+- components/SpeechInput.tsx  — STT via Web Speech API (EN/UZ/AR/RU)
+- components/TTSPlayer.tsx    — TTS via ElevenLabs + browser fallback
+  - Arabic reciters: Hijazi, Abrar Sabbah, Abu Salem (elevenLabsId configured)
+- app/api/tts/route.ts        — ElevenLabs proxy, streams audio/mpeg
+
+## Accessibility design principle
+The app is designed for users with visual impairments and typing difficulties:
+- STT on ALL text inputs (Analyze tab + Dua tab)
+- TTS on ALL output text (analysis, comment, Arabic dua, admin queue)
+- Reciter picker lets user choose preferred Arabic voice
+- aria-label + aria-hidden on all hidden file inputs
+
+## Environment variables (updated)
+ELEVENLABS_API_KEY=sk_...   — ElevenLabs TTS (optional, browser fallback if absent)
+
+## Port
+Local dev runs on 3001 (3000 used by another app)
+npm run dev -- -p 3001
 ```
 
 ## Environment variables
