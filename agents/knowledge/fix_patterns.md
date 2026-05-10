@@ -969,3 +969,152 @@ max_tokens: imageBase64 ? 3000 : 2048,
 | ready-to-post selector not found   | P033    | selector fix   |
 | copy button label mismatch         | P034    | selector fix   |
 | image upload parse error / 500     | P035    | route.ts fix   |
+## ════════════════════════════════════════════════════════
+## PATTERN 36: Audit UZ greeting check — too narrow indicators
+## ════════════════════════════════════════════════════════
+**ID:** P036
+**Type:** Test fix (AI non-determinism)
+**Commit:** fix: expand UZ greeting indicators in audit.spec.ts
+**Symptom:**
+  - audit.spec.ts:184 — UZ greeting test fails
+  - "Expected uz comment to start with Islamic greeting"
+  - Claude uses Hurmatli/Муҳтарам instead of Assalomu
+
+**Root cause:**
+  GREETING_INDICATORS for uz only had 3 variants.
+  Claude legitimately uses other Islamic/respectful greetings
+  in Uzbek (Hurmatli, Муҳтарам, Азиз) that are culturally valid.
+
+**Fix:** Expand GREETING_INDICATORS to include all valid UZ greetings.
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 32: No rate limiting — open API burns budget
+## ════════════════════════════════════════════════════════
+**ID:** P032
+**Type:** route.ts fix (app/api/analyze/route.ts)
+**Symptom:**
+  - Every user visit triggers Claude API call with no limit
+  - Monthly bill grows unbounded if app goes viral
+  - No 429 responses ever returned
+
+**Root cause:**
+  Route had security (sanitizeInput, validateOutput) but
+  zero rate limiting. 1.5K real users already hitting API
+  with no daily cap.
+
+**Fix — 3 locations in route.ts:**
+
+**1. After imports, before anthropic const:**
+```ts
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT = 100
+const RATE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetInHours: number } {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW_MS })
+    return { allowed: true, remaining: RATE_LIMIT - 1, resetInHours: 24 }
+  }
+  if (record.count >= RATE_LIMIT) {
+    const resetInHours = Math.ceil((record.resetTime - now) / 3600000)
+    return { allowed: false, remaining: 0, resetInHours }
+  }
+  record.count++
+  return { allowed: true, remaining: RATE_LIMIT - record.count, resetInHours: 24 }
+}
+```
+
+**2. After sanitizeInput block — rate limit check + 429:**
+```ts
+const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+           req.headers.get('x-real-ip') || 'unknown'
+const { allowed, remaining, resetInHours } = checkRateLimit(ip)
+if (!allowed) {
+  return NextResponse.json({
+    error: 'Daily limit reached',
+    message_en: `JazakAllahu khayran! You have used your ${RATE_LIMIT} free daily verifications. Return in ${resetInHours} hour(s). 🤲`,
+    message_uz: `JazakAllahu xayran! ${RATE_LIMIT} ta kunlik limitingiz tugadi. ${resetInHours} soatdan keyin keling. 🤲`,
+    message_ar: `جزاكم الله خيراً! استخدمت ${RATE_LIMIT} فحصاً. عُد خلال ${resetInHours} ساعة. 🤲`,
+    message_ru: `ДжазакАллаху хайран! Лимит ${RATE_LIMIT} проверок исчерпан. Вернитесь через ${resetInHours} ч. 🤲`,
+    remaining: 0,
+    resetInHours
+  }, { status: 429, headers: { 'Retry-After': String(resetInHours * 3600) }})
+}
+```
+
+**3. Final return — add rate limit headers:**
+```ts
+return NextResponse.json(result, {
+  headers: {
+    'X-RateLimit-Limit': String(RATE_LIMIT),
+    'X-RateLimit-Remaining': String(remaining),
+  }
+})
+```
+
+**Test: api_spec.ts — new describe block:**
+```ts
+test.describe('Rate limiting', () => {
+  test('should include rate limit headers', async ({ request }) => { ... })
+  test('429 should have kind multilingual message', async ({ request }) => {
+    test.skip(!!process.env.CI, 'Skipped in CI — rate limit simulation')
+    ...
+  })
+})
+```
+**Status:** FIXED — April 2026
+**Key learning:** Security layer existed but no cost protection.
+  100/day per IP = generous for real users, blocks abuse.
+  In-memory Map resets on Vercel cold start — acceptable for
+  this use case. For stricter limits use Vercel KV.
+  fix: add Tajik language to rate limit message.
+
+
+  ## ════════════════════════════════════════════════════════
+## PATTERN 36: Hidden file input axe accessibility warning
+## ════════════════════════════════════════════════════════
+**ID:** P036
+**Type:** Accessibility / WCAG
+**Symptom:**
+  - VS Code axe extension: "Form elements must have labels"
+  - Red squiggle on <input type="file" className="hidden">
+
+**Root cause:**
+  Axe flags hidden inputs even when they are intentionally hidden
+  and triggered programmatically via ref.current.click()
+
+**Fix — add aria-label and aria-hidden:**
+```tsx
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  className="hidden"
+  aria-label="Upload screenshot for analysis"
+  aria-hidden="true"
+  onChange={...}
+/>
+```
+**Status:** FIXED in page.tsx — May 2026
+
+
+## ════════════════════════════════════════════════════════
+## PATTERN 37: Another app running on port 3000
+## ════════════════════════════════════════════════════════
+**ID:** P037
+**Type:** Developer environment (Windows)
+**Symptom:**
+  - "Port 3000 is already in use"
+  - npm run dev fails to start
+
+**Fix:**
+```powershell
+npm run dev -- -p 3001
+# Or permanently in package.json:
+"dev": "next dev -p 3001"
+```
+**Status:** DOCUMENTED

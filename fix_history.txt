@@ -1,0 +1,23 @@
+646929e fix: force minimum 2 references in prompt
+f25b170 fix: increase timeout on flaky source reference UI tests
+11f3b74 fix: stronger references prompt + increase timeout on flaky URL tests
+bb8f5d2 fix: replace em dashes in TJ lang instruction
+cdb692f fix: explicitly ban Uzbek phrases in TJ output, provide Tajik alternatives
+5c9602d fix: strengthen TJ language instruction to prevent Uzbek drift and fix salawat
+8cc786d fix: normalize references and red_flags to always be arrays
+76e37a1 fix: use general source links instead of specific hadith numbers
+305b2c9 fix: skip stats counter test in CI to avoid rate limit conflict
+1f22134 fix: handle rate limit in stats counter test
+f74bad7 fix: UZ UI test - add Cyrillic fallback for language switching test
+07806a2 fix: language tests now validate all fields (analysis, claim_summary, red_flags)
+086a1b8 fix: all analysis fields now respond in selected language (UZ/AR/RU)
+34cfd0b fix: remove RLS filter, add debug logging for queue route
+afdb33f fix: add SEVERITY_STYLE const and fix TIER_STYLE type cast
+29f0325 fix: recreate tsconfig.json with correct UTF-8 encoding
+bb08c64 fix: trigger rebuild after tsconfig revert
+8170d5b fix: complete route.ts rewrite with all logic inlined - no external imports
+8827e6c fix: inline severity and alerts to eliminate import resolution issues
+52112e6 fix: add baseUrl to tsconfig for @/ path alias resolution
+63523eb fix: correct relative import path to ../../../lib
+bd01066 fix: use relative imports for severity and alerts
+ef85486 fix: use service role key for Supabase server-side writes
