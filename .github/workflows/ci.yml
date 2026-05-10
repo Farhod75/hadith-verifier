@@ -50,3 +50,9 @@ jobs:
           name: test-screenshots
           path: test-results/
           retention-days: 7
+      - name: Run language + speech tests
+        run: npx playwright test tests/language-speech.spec.ts --reporter=list --workers=1
+        env:
+          BASE_URL: https://hadithverifier.com
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} 
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
