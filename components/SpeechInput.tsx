@@ -6,6 +6,7 @@ const SPEECH_LANG_MAP: Record<string, string> = {
   ar: 'ar-SA',
   uz: 'uz-UZ',
   ru: 'ru-RU',
+  tj: 'fa-IR',  // Tajik uses Persian speech recognition (closest available)
 }
 
 interface Props {

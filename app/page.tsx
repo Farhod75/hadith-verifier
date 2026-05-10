@@ -275,12 +275,38 @@ export default function Home() {
                   {/* 🎙 STT — speaks into analyze textarea */}
                   <div className="mt-2">
                     <SpeechInput
-                      lang={replyLang}
-                      disabled={loading}
-                      onTranscript={transcript =>
-                        setPostText(prev => prev ? prev + ' ' + transcript : transcript)
-                      }
-                    />
+  lang={replyLang}
+  disabled={loading}
+  onTranscript={async (transcript) => {
+    // Always paste into textarea first (immediate feedback)
+    setPostText(prev => prev ? prev + ' ' + transcript : transcript)
+
+    // Then detect intent via Claude
+    try {
+      const res = await fetch('/api/voice-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, lang: replyLang })
+      })
+      const intent = await res.json()
+
+      // Route based on intent
+      if (intent.intent === 'find_dua' || intent.intent === 'verify_dua') {
+        // Auto-switch to Dua tab
+        setTab('dua')
+        setDuaText(intent.raw_text || transcript)
+      } else if (intent.intent === 'verify_hadith' || intent.intent === 'find_hadith') {
+        // Stay on analyze tab — text already pasted above
+        // Auto-trigger analyze if high confidence
+        if (intent.intent === 'verify_hadith') {
+          setTimeout(() => analyze(), 300)
+        }
+      }
+    } catch {
+      // Silent fail — text already pasted, user can click manually
+    }
+  }}
+/>
                   </div>
 
                   <div

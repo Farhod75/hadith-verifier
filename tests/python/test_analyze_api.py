@@ -398,3 +398,132 @@ class TestAdminQueue:
         body = res.json()
         if body:
             assert body[0]["verdict"] in VALID_VERDICTS
+
+# ─────────────────────────────────────────────────────────────
+# SUITE: Multi-language validation (all 5 languages)
+# ─────────────────────────────────────────────────────────────
+
+LANG_CONFIGS = [
+    {
+        "lang": "en",
+        "name": "English",
+        "script_pattern": re.compile(r"[a-zA-Z]"),
+        "keyword": "hadith",
+    },
+    {
+        "lang": "uz",
+        "name": "Uzbek",
+        "script_pattern": re.compile(r"[\u0400-\u04FF]"),
+        "keyword": "ҳадис",
+    },
+    {
+        "lang": "ar",
+        "name": "Arabic",
+        "script_pattern": re.compile(r"[\u0600-\u06FF]"),
+        "keyword": "حديث",
+    },
+    {
+        "lang": "ru",
+        "name": "Russian",
+        "script_pattern": re.compile(r"[\u0400-\u04FF]"),
+        "keyword": "хадис",
+    },
+    {
+        "lang": "tj",
+        "name": "Tajik",
+        "script_pattern": re.compile(r"[\u0400-\u04FF]"),
+        "keyword": "ҳадис",
+    },
+]
+
+FABRICATED_POST = (
+    "Prophet said whoever reads Surah Fatiha 1000 times "
+    "will receive 1000 rewards. Share this message!"
+)
+
+class TestMultiLanguage:
+
+    @pytest.mark.parametrize("config", LANG_CONFIGS, ids=[c["lang"] for c in LANG_CONFIGS])
+    def test_suggested_comment_in_correct_script(self, config):
+        """Each lang must return suggested_comment in correct script."""
+        body = post_analyze(FABRICATED_POST, lang=config["lang"])
+        comment = body.get("suggested_comment", "")
+        assert comment, f"[{config['lang']}] suggested_comment is empty"
+        if config["lang"] != "en":
+            assert config["script_pattern"].search(comment), (
+                f"[{config['lang']}] comment not in expected script: {comment[:80]}"
+            )
+
+    @pytest.mark.parametrize("config", LANG_CONFIGS, ids=[c["lang"] for c in LANG_CONFIGS])
+    def test_verdict_valid_for_all_languages(self, config):
+        """All 5 languages must return valid verdict."""
+        body = post_analyze(FABRICATED_POST, lang=config["lang"])
+        assert body["verdict"] in ["fabricated", "weak", "authentic", "unclear", "no_hadith"]
+
+    @pytest.mark.parametrize("config", LANG_CONFIGS, ids=[c["lang"] for c in LANG_CONFIGS])
+    def test_severity_valid_for_all_languages(self, config):
+        """All 5 languages must return valid severity."""
+        body = post_analyze(FABRICATED_POST, lang=config["lang"])
+        assert body.get("severity") in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+
+
+class TestVoiceIntent:
+
+    INTENT_TESTS = [
+        ("tell me a hadith about prayer", "en", "find_hadith"),
+        ("намоз ҳақида ҳадис айтинг", "uz", "find_hadith"),
+        ("أخبرني بحديث عن الصلاة", "ar", "find_hadith"),
+        ("расскажи хадис о молитве", "ru", "find_hadith"),
+    ]
+
+    @pytest.mark.parametrize("transcript,lang,expected_intent",
+                              INTENT_TESTS,
+                              ids=["en","uz","ar","ru"])
+    def test_voice_intent_classification(self, transcript, lang, expected_intent):
+        """Voice intent must classify hadith search correctly."""
+        res = httpx.post(
+            f"{BASE_URL}/api/voice-intent",
+            json={"transcript": transcript, "lang": lang},
+            timeout=TIMEOUT,
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["intent"] in [
+            "find_hadith", "verify_hadith",
+            "find_dua", "verify_dua",
+            "find_quran", "unknown"
+        ]
+        assert body["intent"] == expected_intent, (
+            f"Expected {expected_intent}, got {body['intent']} "
+            f"for transcript: {transcript}"
+        )
+        assert body.get("search_query"), "search_query must not be empty"
+
+
+class TestTTSRoute:
+
+    def test_tts_missing_text_returns_400(self):
+        res = httpx.post(
+            f"{BASE_URL}/api/tts",
+            json={"voiceId": "test"},
+            timeout=10,
+        )
+        assert res.status_code == 400
+
+    def test_tts_missing_voice_id_returns_400(self):
+        res = httpx.post(
+            f"{BASE_URL}/api/tts",
+            json={"text": "test"},
+            timeout=10,
+        )
+        assert res.status_code == 400
+
+    def test_tts_valid_request_returns_audio_or_503(self):
+        res = httpx.post(
+            f"{BASE_URL}/api/tts",
+            json={"text": "Bismillah", "voiceId": "fkqevZRU7Xj52dY1CTkq"},
+            timeout=15,
+        )
+        assert res.status_code in [200, 503, 502]
+        if res.status_code == 200:
+            assert "audio/mpeg" in res.headers.get("content-type", "")

@@ -1118,3 +1118,50 @@ npm run dev -- -p 3001
 "dev": "next dev -p 3001"
 ```
 **Status:** DOCUMENTED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 38: Window.gtag / dataLayer TypeScript TS2339
+## ════════════════════════════════════════════════════════
+**ID:** P038
+**Type:** TypeScript fix
+**File:** tests/analytics.spec.ts
+**Symptom:**
+  - TS2339: Property 'gtag' does not exist on type 'Window & typeof globalThis'
+  - TS2339: Property 'dataLayer' does not exist on type 'Window & typeof globalThis'
+  - npx tsc --noEmit shows 6 errors all in analytics.spec.ts
+
+**Root cause:**
+  Google Analytics adds gtag() and dataLayer[] to window at runtime
+  but TypeScript doesn't know about them without a type declaration.
+
+**Fix — add at top of analytics.spec.ts before imports:**
+```typescript
+declare global {
+  interface Window {
+    gtag: (...args: any[]) => void
+    dataLayer: any[]
+  }
+}
+```
+**Status:** FIXED — May 2026
+
+## ════════════════════════════════════════════════════════
+## PATTERN 39: Vercel CLI — Development env var error
+## ════════════════════════════════════════════════════════
+**ID:** P039
+**Type:** Infrastructure (Vercel CLI)
+**Symptom:**
+  - "Development cannot be combined with other Environments"
+  - vercel env ls shows "No Environment Variables found"
+
+**Root cause:**
+  Vercel CLI does not allow adding sensitive vars to Development
+  alongside Production/Preview in one command.
+
+**Fix — add to each environment separately:**
+```powershell
+vercel env add KEY_NAME production
+vercel env add KEY_NAME preview
+# Development reads from .env.local automatically
+```
+**Status:** DOCUMENTED — May 2026

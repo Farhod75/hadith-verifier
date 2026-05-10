@@ -159,3 +159,17 @@ vercel --prod --force
 ## Live URLs
 - Production: https://hadith-verifier-vp57.vercel.app
 - GitHub: https://github.com/Farhod75/hadith-verifier
+
+## Vercel env var best practice (Windows PowerShell)
+# Add to Production + Preview only (Development uses .env.local)
+# Selecting all 3 causes "Development cannot be combined" error
+
+vercel env add KEY_NAME production
+vercel env add KEY_NAME preview
+# Development reads from .env.local automatically — no need to add via CLI
+
+## Vercel env var CLI tip (P039)
+- Never select Production + Preview + Development together via CLI
+- Always add separately: vercel env add KEY production
+                         vercel env add KEY preview
+- Development uses .env.local automatically
