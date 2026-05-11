@@ -187,9 +187,9 @@ test.describe('STT language code mapping', () => {
   const EXPECTED_MAP: Record<string, string> = {
     en: 'en-US',
     ar: 'ar-SA',
-    uz: 'uz-UZ',
+    uz: 'ru-RU',   // Web Speech API fallback — uz-UZ not supported
     ru: 'ru-RU',
-    tj: 'fa-IR',
+    tj: 'ru-RU',   // Web Speech API fallback — Tajik not supported
   }
 
   for (const [lang, bcp47] of Object.entries(EXPECTED_MAP)) {

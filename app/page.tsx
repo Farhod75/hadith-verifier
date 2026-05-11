@@ -244,7 +244,15 @@ export default function Home() {
           </div>
         </div>
       </header>
-
+        {/* HadithReels cross-link banner */}
+        <div className="bg-emerald-800 text-white text-xs text-center py-1.5 px-4">
+          ✨{' '}
+          <a href="https://hadithreels.com" target="_blank" rel="noopener noreferrer"
+            className="underline font-medium hover:text-emerald-200">
+            HadithReels.com
+          </a>
+          {' '}— Authentic hadith stories as animated reels · Adults &amp; Kids
+        </div>
       <main className="max-w-3xl mx-auto px-4 py-6">
 
         {/* TABS */}
