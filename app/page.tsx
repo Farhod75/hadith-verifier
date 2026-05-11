@@ -6,7 +6,7 @@ import SpeechInput from '@/components/SpeechInput'
 import TTSPlayer from '@/components/TTSPlayer'
 
 type ReplyLang = 'en' | 'uz' | 'ar' | 'ru'
-type Tab = 'analyze' | 'dua' | 'sources' | 'admin'
+type Tab = 'analyze' | 'dua' | 'sources' | 'admin' | 'search'
 type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
 
 interface Reference { source: string; description: string; url: string; authority: string }
@@ -89,6 +89,12 @@ export default function Home() {
   const [queue, setQueue]               = useState<QueueItem[]>([])
   const [queueLoading, setQueueLoading] = useState(false)
   const [stats, setStats]               = useState({ total: 0, fabricated: 0, authentic: 0 })
+  const [searchQuery, setSearchQuery]   = useState('')
+  const [searchTag, setSearchTag]       = useState('')
+  const [searchGrade, setSearchGrade]   = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchDone, setSearchDone]     = useState(false)
   const fileInputRef    = useRef<HTMLInputElement>(null)
   const duaFileInputRef = useRef<HTMLInputElement>(null)
   const tr  = t(appLang)
@@ -102,6 +108,27 @@ export default function Home() {
     setQueueLoading(true)
     try { const r = await fetch('/api/queue'); setQueue(await r.json()) } catch { setQueue([]) }
     setQueueLoading(false)
+  }
+
+  async function searchHadiths() {
+    if (!searchQuery.trim() && !searchTag) return
+    setSearchLoading(true)
+    setSearchDone(false)
+    setSearchResults([])
+    try {
+      const params = new URLSearchParams()
+      if (searchQuery.trim()) params.set('q', searchQuery.trim())
+      if (searchTag)          params.set('tag', searchTag)
+      if (searchGrade)        params.set('grade', searchGrade)
+      params.set('lang', replyLang)
+      const res  = await fetch(`/api/search?${params}`)
+      const data = await res.json()
+      setSearchResults(Array.isArray(data) ? data : [])
+    } catch {
+      setSearchResults([])
+    }
+    setSearchLoading(false)
+    setSearchDone(true)
   }
 
   function handleImageSelect(file: File, isDua = false) {
@@ -183,7 +210,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50" dir={dir}>
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-3xl mx-auto flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-emerald-700 flex items-center justify-center text-white text-lg flex-shrink-0">☽</div>
@@ -191,13 +218,9 @@ export default function Home() {
             <h1 className="text-lg font-semibold text-gray-900">{tr.appName}</h1>
             <p className="text-xs text-gray-500 truncate">{tr.appSubtitle}</p>
           </div>
-
-          {/* Language switcher */}
           <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setShowLangMenu(!showLangMenu)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
-            >
+            <button onClick={() => setShowLangMenu(!showLangMenu)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
               <span>{currentLang.flag}</span>
               <span className="text-gray-700">{currentLang.label}</span>
               <span className="text-gray-400 text-xs">▾</span>
@@ -207,16 +230,13 @@ export default function Home() {
                 {APP_LANGUAGES.map(lang => (
                   <button key={lang.code} onClick={() => { setAppLang(lang.code); setShowLangMenu(false) }}
                     className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-50 text-left ${appLang === lang.code ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'}`}>
-                    <span>{lang.flag}</span>
-                    <span>{lang.label}</span>
+                    <span>{lang.flag}</span><span>{lang.label}</span>
                     {appLang === lang.code && <span className="ml-auto text-emerald-600">✓</span>}
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Session stats */}
           <div className="hidden sm:flex gap-3 text-center flex-shrink-0">
             <div><div className="text-lg font-semibold text-gray-900">{stats.total}</div><div className="text-xs text-gray-500">{tr.statChecked}</div></div>
             <div><div className="text-lg font-semibold text-red-700">{stats.fabricated}</div><div className="text-xs text-gray-500">{tr.statFlagged}</div></div>
@@ -227,13 +247,14 @@ export default function Home() {
 
       <main className="max-w-3xl mx-auto px-4 py-6">
 
-        {/* ── TABS ── */}
+        {/* TABS */}
         <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
           {([
             { key: 'analyze', label: tr.tabAnalyze },
             { key: 'dua',     label: tr.tabDua },
             { key: 'sources', label: tr.tabSources },
             { key: 'admin',   label: tr.tabAdmin + (queue.length ? ` (${queue.length})` : '') },
+            { key: 'search',  label: '🔍 Search' },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === key ? 'border-emerald-600 text-emerald-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
@@ -242,14 +263,10 @@ export default function Home() {
           ))}
         </div>
 
-        {/* ══════════════════════════════════════════
-            ANALYZE TAB
-        ══════════════════════════════════════════ */}
+        {/* ANALYZE TAB */}
         {tab === 'analyze' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
-
-              {/* Input mode toggle */}
               <div className="flex gap-2 mb-3">
                 <button onClick={() => { setImage(null); setImagePreview('') }}
                   className={`text-xs px-3 py-1.5 rounded-lg border ${!imagePreview ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-500'}`}>
@@ -260,66 +277,41 @@ export default function Home() {
                   {tr.uploadScreenshot}
                 </button>
               </div>
-
               {!imagePreview ? (
                 <>
                   <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.pastePostContent}</div>
-                  <textarea
-                    value={postText}
-                    onChange={e => setPostText(e.target.value)}
+                  <textarea value={postText} onChange={e => setPostText(e.target.value)}
                     placeholder={tr.postPlaceholder}
                     className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50"
-                    dir="auto"
-                  />
-
-                  {/* 🎙 STT — speaks into analyze textarea */}
+                    dir="auto" />
                   <div className="mt-2">
-                    <SpeechInput
-  lang={replyLang}
-  disabled={loading}
-  onTranscript={async (transcript) => {
-    // Always paste into textarea first (immediate feedback)
-    setPostText(prev => prev ? prev + ' ' + transcript : transcript)
-
-    // Then detect intent via Claude
-    try {
-      const res = await fetch('/api/voice-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, lang: replyLang })
-      })
-      const intent = await res.json()
-
-      // Route based on intent
-      if (intent.intent === 'find_dua' || intent.intent === 'verify_dua') {
-        // Auto-switch to Dua tab
-        setTab('dua')
-        setDuaText(intent.raw_text || transcript)
-      } else if (intent.intent === 'verify_hadith' || intent.intent === 'find_hadith') {
-        // Stay on analyze tab — text already pasted above
-        // Auto-trigger analyze if high confidence
-        if (intent.intent === 'verify_hadith') {
-          setTimeout(() => analyze(), 300)
-        }
-      }
-    } catch {
-      // Silent fail — text already pasted, user can click manually
-    }
-  }}
-/>
+                    <SpeechInput lang={replyLang} disabled={loading}
+                      onTranscript={async (transcript) => {
+                        setPostText(prev => prev ? prev + ' ' + transcript : transcript)
+                        try {
+                          const res = await fetch('/api/voice-intent', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ transcript, lang: replyLang })
+                          })
+                          const intent = await res.json()
+                          if (intent.intent === 'find_dua' || intent.intent === 'verify_dua') {
+                            setTab('dua'); setDuaText(intent.raw_text || transcript)
+                          } else if (intent.intent === 'verify_hadith') {
+                            setTimeout(() => analyze(), 300)
+                          }
+                        } catch { /* silent */ }
+                      }}
+                    />
                   </div>
-
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-2 border-2 border-dashed rounded-lg p-3 text-center cursor-pointer border-gray-200 hover:border-gray-300"
-                  >
+                  <div onClick={() => fileInputRef.current?.click()}
+                    className="mt-2 border-2 border-dashed rounded-lg p-3 text-center cursor-pointer border-gray-200 hover:border-gray-300">
                     <div className="text-xs text-gray-400">{tr.dragDrop}</div>
                   </div>
-
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
                     <span className="text-xs text-gray-400">{tr.tryLabel}</span>
-                    <button onClick={() => setPostText(EXAMPLES.uz)}        className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleFabricated}</button>
-                    <button onClick={() => setPostText(EXAMPLES.chain)}     className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleChain}</button>
+                    <button onClick={() => setPostText(EXAMPLES.uz)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleFabricated}</button>
+                    <button onClick={() => setPostText(EXAMPLES.chain)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleChain}</button>
                     <button onClick={() => setPostText(EXAMPLES.authentic)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleAuthentic}</button>
                   </div>
                 </>
@@ -331,13 +323,9 @@ export default function Home() {
                     className="absolute top-6 right-2 bg-red-100 text-red-700 text-xs px-2 py-1 rounded">{tr.removeImage}</button>
                 </div>
               )}
-
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
-                aria-label="Upload screenshot for analysis"
-                aria-hidden="true"
+                aria-label="Upload screenshot for analysis" aria-hidden="true"
                 onChange={e => { if (e.target.files?.[0]) handleImageSelect(e.target.files[0]) }} />
-
-              {/* Action row */}
               <div className="flex gap-2 mt-3 items-center flex-wrap">
                 <button onClick={analyze} disabled={loading || (!postText.trim() && !image)}
                   className="bg-emerald-700 text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-emerald-800 disabled:opacity-40 flex items-center gap-2">
@@ -347,8 +335,6 @@ export default function Home() {
                 </button>
                 <button onClick={() => { setPostText(''); setResult(null); setImage(null); setImagePreview('') }}
                   className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.clear}</button>
-
-                {/* Reply language picker */}
                 <div className="ml-auto flex gap-1 items-center">
                   <span className="text-xs text-gray-400 mr-1">{tr.replyIn}</span>
                   {(['en', 'uz', 'ar', 'ru'] as ReplyLang[]).map(l => (
@@ -361,7 +347,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ── RESULT ── */}
             {result && vs && (
               <div className="space-y-3">
                 {result.extracted_text && (
@@ -370,8 +355,6 @@ export default function Home() {
                     <div className="text-sm text-blue-800">{result.extracted_text}</div>
                   </div>
                 )}
-
-                {/* Verdict card */}
                 <div className={`rounded-xl border p-4 ${vs.bg} ${vs.border}`}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`text-xs font-medium px-2 py-1 rounded-full ${vs.badge}`}>{verdictLabel}</span>
@@ -381,12 +364,9 @@ export default function Home() {
                   </div>
                   <div className={`font-medium mb-2 ${vs.text}`}>{result.claim_summary}</div>
                   <div className={`text-sm leading-relaxed ${vs.text}`}>{result.analysis}</div>
-
-                  {/* ▶ TTS — listen to analysis */}
                   <div className="mt-3 pt-3 border-t border-black/5">
                     <TTSPlayer text={result.analysis} lang={replyLang} label="Listen to analysis" />
                   </div>
-
                   {result.red_flags?.length > 0 && (
                     <div className="mt-3">
                       <div className="text-xs font-medium uppercase tracking-wide mb-1 opacity-70">{tr.redFlagsDetected}</div>
@@ -396,8 +376,6 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-
-                {/* Sources */}
                 {result.authentic_alternative && (
                   <div className="bg-white rounded-xl border border-gray-200 p-4">
                     <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.authenticScholarshipSays}</div>
@@ -423,18 +401,13 @@ export default function Home() {
                     )}
                   </div>
                 )}
-
-                {/* Suggested comment */}
                 {result.suggested_comment && (
                   <div className="bg-white rounded-xl border border-gray-200 p-4">
                     <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.readyToPost} ({replyLang.toUpperCase()})</div>
                     <div className="bg-gray-50 rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap" dir="auto">{result.suggested_comment}</div>
-
-                    {/* ▶ TTS — listen to suggested comment */}
                     <div className="mt-3">
                       <TTSPlayer text={result.suggested_comment} lang={replyLang} label="Listen to comment" />
                     </div>
-
                     <div className="flex gap-2 mt-3">
                       <CopyButton text={result.suggested_comment} label={tr.copyComment} />
                       {['fabricated','weak'].includes(result.verdict) && (
@@ -449,15 +422,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════
-            DUA CORRECTOR TAB
-        ══════════════════════════════════════════ */}
+        {/* DUA CORRECTOR TAB */}
         {tab === 'dua' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{tr.duaCorrectorTitle}</div>
               <div className="text-xs text-gray-400 mb-3">{tr.duaCorrectorSubtitle}</div>
-
               <div className="flex gap-2 mb-3">
                 <button onClick={() => { setDuaImage(null); setDuaImagePreview('') }}
                   className={`text-xs px-3 py-1.5 rounded-lg border ${!duaImagePreview ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-500'}`}>
@@ -468,27 +438,18 @@ export default function Home() {
                   {tr.uploadScreenshot}
                 </button>
               </div>
-
               {!duaImagePreview ? (
                 <>
                   <textarea value={duaText} onChange={e => setDuaText(e.target.value)} placeholder={tr.duaPlaceholder}
                     className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50" dir="auto" />
-
-                  {/* 🎙 STT — always Arabic for dua input */}
                   <div className="mt-2">
-                    <SpeechInput
-                      lang="ar"
-                      disabled={duaLoading}
-                      onTranscript={transcript =>
-                        setDuaText(prev => prev ? prev + ' ' + transcript : transcript)
-                      }
-                    />
+                    <SpeechInput lang="ar" disabled={duaLoading}
+                      onTranscript={transcript => setDuaText(prev => prev ? prev + ' ' + transcript : transcript)} />
                   </div>
-
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
                     <span className="text-xs text-gray-400">{tr.tryLabel}</span>
-                    <button onClick={() => setDuaText(DUA_EXAMPLES.wrong)}          className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleWrongOrder}</button>
-                    <button onClick={() => setDuaText(DUA_EXAMPLES.arabic_only)}    className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleArabicOnly}</button>
+                    <button onClick={() => setDuaText(DUA_EXAMPLES.wrong)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleWrongOrder}</button>
+                    <button onClick={() => setDuaText(DUA_EXAMPLES.arabic_only)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleArabicOnly}</button>
                     <button onClick={() => setDuaText(DUA_EXAMPLES.transliteration)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleTransliteration}</button>
                   </div>
                 </>
@@ -499,12 +460,9 @@ export default function Home() {
                     className="absolute top-2 right-2 bg-red-100 text-red-700 text-xs px-2 py-1 rounded">{tr.removeImage}</button>
                 </div>
               )}
-
               <input ref={duaFileInputRef} type="file" accept="image/*" className="hidden"
-                aria-label="Upload screenshot for dua analysis"
-                aria-hidden="true"
+                aria-label="Upload screenshot for dua analysis" aria-hidden="true"
                 onChange={e => { if (e.target.files?.[0]) handleImageSelect(e.target.files[0], true) }} />
-
               <div className="flex gap-2 mt-3">
                 <button onClick={analyzeDua} disabled={duaLoading || (!duaText.trim() && !duaImage)}
                   className="bg-emerald-700 text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-emerald-800 disabled:opacity-40 flex items-center gap-2">
@@ -525,7 +483,6 @@ export default function Home() {
                       <div className="text-sm text-blue-800">{duaResult.extracted_text}</div>
                     </div>
                   )}
-
                   <div className={`rounded-xl border p-4 ${ds.bg} ${ds.border}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${ds.badge}`}>{ds.label}</span>
@@ -540,22 +497,12 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-
                   {duaResult.corrected_arabic && (
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">{tr.correctArabic}</div>
-                      <div className="text-2xl text-right leading-loose text-gray-900 p-3 bg-gray-50 rounded-lg" dir="rtl">
-                        {duaResult.corrected_arabic}
-                      </div>
-
-                      {/* ▶ TTS — listen to corrected Arabic dua */}
-                      <div className="mt-3">
-                        <TTSPlayer text={duaResult.corrected_arabic} lang="ar" label="Listen in Arabic" />
-                      </div>
-
-                      <div className="mt-3 flex justify-end">
-                        <CopyButton text={duaResult.corrected_arabic} label={tr.copyArabic} />
-                      </div>
+                      <div className="text-2xl text-right leading-loose text-gray-900 p-3 bg-gray-50 rounded-lg" dir="rtl">{duaResult.corrected_arabic}</div>
+                      <div className="mt-3"><TTSPlayer text={duaResult.corrected_arabic} lang="ar" label="Listen in Arabic" /></div>
+                      <div className="mt-3 flex justify-end"><CopyButton text={duaResult.corrected_arabic} label={tr.copyArabic} /></div>
                       {duaResult.source?.url && (
                         <div className="mt-3 text-xs text-gray-500">
                           {tr.source}: <a href={duaResult.source.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">{duaResult.source.name} — {duaResult.source.reference}</a>
@@ -564,7 +511,6 @@ export default function Home() {
                       )}
                     </div>
                   )}
-
                   {duaResult.transliterations && (
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">{tr.transliterations}</div>
@@ -580,10 +526,7 @@ export default function Home() {
                           return (
                             <div key={key} className="border border-gray-100 rounded-lg p-3 bg-gray-50">
                               <div className="flex items-center justify-between mb-1">
-                                <div>
-                                  <span className="text-xs font-medium text-gray-700">{label}</span>
-                                  {desc && <span className="text-xs text-gray-400 ml-2">{desc}</span>}
-                                </div>
+                                <div><span className="text-xs font-medium text-gray-700">{label}</span>{desc && <span className="text-xs text-gray-400 ml-2">{desc}</span>}</div>
                                 <CopyButton text={text} label={tr.copyBtn} />
                               </div>
                               <div className="text-sm text-gray-800 leading-relaxed">{text}</div>
@@ -593,7 +536,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
                   {duaResult.translation && (
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">{tr.meaning}</div>
@@ -611,7 +553,6 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-
                   {duaResult.suggested_comment && (
                     <div className="bg-white rounded-xl border border-gray-200 p-4">
                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">{tr.correctionComments}</div>
@@ -643,9 +584,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════
-            SOURCES TAB
-        ══════════════════════════════════════════ */}
+        {/* SOURCES TAB */}
         {tab === 'sources' && (
           <div className="space-y-4">
             {[
@@ -683,22 +622,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════
-            ADMIN TAB
-        ══════════════════════════════════════════ */}
+        {/* ADMIN TAB */}
         {tab === 'admin' && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   {tr.flaggedPostsQueue}
-                  {queue.length > 0 && (
-                    <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{queue.length}</span>
-                  )}
+                  {queue.length > 0 && <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{queue.length}</span>}
                 </div>
                 <button onClick={fetchQueue} className="text-xs text-emerald-600 hover:underline">{tr.refresh}</button>
               </div>
-
               {queueLoading && (
                 <div className="flex items-center justify-center py-8 gap-2">
                   <span className="w-4 h-4 border-2 border-emerald-500/40 border-t-emerald-500 rounded-full animate-spin" />
@@ -708,7 +642,6 @@ export default function Home() {
               {!queueLoading && queue.length === 0 && (
                 <div className="text-sm text-gray-400 py-8 text-center">{tr.noFlaggedPosts}</div>
               )}
-
               <div className="space-y-3">
                 {queue.map(item => {
                   const sev = item.severity || 'MEDIUM'
@@ -718,16 +651,10 @@ export default function Home() {
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${ss.badge}`}>{ss.icon} {sev}</span>
                         <span className={`text-xs px-2 py-1 rounded-full ${item.verdict === 'fabricated' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{item.verdict}</span>
-                        {item.confidence && (
-                          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{item.confidence} confidence</span>
-                        )}
+                        {item.confidence && <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{item.confidence} confidence</span>}
                         <span className="text-xs text-gray-400 ml-auto">{new Date(item.created_at).toLocaleDateString()} · {item.lang?.toUpperCase()}</span>
                       </div>
-
-                      <div className="text-sm font-medium text-gray-800 mb-2">
-                        {item.claim_summary || item.post_text?.slice(0, 120)}
-                      </div>
-
+                      <div className="text-sm font-medium text-gray-800 mb-2">{item.claim_summary || item.post_text?.slice(0, 120)}</div>
                       {item.red_flags?.length > 0 && (
                         <div className="mb-3">
                           <div className="text-xs text-gray-400 mb-1">Red flags:</div>
@@ -738,20 +665,14 @@ export default function Home() {
                           </div>
                         </div>
                       )}
-
                       {item.suggested_comment && (
-                        <div className="text-xs text-gray-500 bg-white rounded-lg p-2 border border-gray-100 mb-3 line-clamp-2" dir="auto">
-                          {item.suggested_comment}
-                        </div>
+                        <div className="text-xs text-gray-500 bg-white rounded-lg p-2 border border-gray-100 mb-3 line-clamp-2" dir="auto">{item.suggested_comment}</div>
                       )}
-
-                      {/* ▶ TTS — listen to admin queue comment */}
                       {item.suggested_comment && (
                         <div className="mb-3">
                           <TTSPlayer text={item.suggested_comment} lang={item.lang || 'en'} label="Listen to comment" />
                         </div>
                       )}
-
                       <div className="flex gap-2 flex-wrap">
                         <button onClick={() => { navigator.clipboard.writeText(item.suggested_comment); alert(tr.copied) }}
                           className="text-xs px-3 py-1.5 rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 font-medium">
@@ -761,8 +682,7 @@ export default function Home() {
                           className="text-xs px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
                           🚩 {tr.reportBtn}
                         </button>
-                        <button
-                          onClick={async () => {
+                        <button onClick={async () => {
                             await fetch('/api/queue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
                             setQueue(q => q.filter(i => i.id !== item.id))
                           }}
@@ -778,6 +698,128 @@ export default function Home() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">{tr.adminPolicy}</div>
           </div>
         )}
+
+        {/* SEARCH TAB — correctly placed inside <main> before closing tag */}
+        {tab === 'search' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+                Search Authenticated Hadith Library
+              </div>
+              <div className="mb-3">
+                <input type="text" value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && searchHadiths()}
+                  placeholder="Search by keyword, narrator, or collection..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-gray-50" />
+                <div className="mt-2">
+                  <SpeechInput lang={replyLang} disabled={searchLoading}
+                    onTranscript={transcript => setSearchQuery(transcript)} />
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap mb-3">
+                <select value={searchTag} onChange={e => setSearchTag(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:border-emerald-500">
+                  <option value="">All tags</option>
+                  {['salah','fasting','ramadan','zakat','hajj','iman','quran','knowledge',
+                    'character','charity','patience','gratitude','taqwa','brotherhood',
+                    'family','heart','deeds','intentions','speech','forgiveness'].map(tag => (
+                    <option key={tag} value={tag}>{tag}</option>
+                  ))}
+                </select>
+                <select value={searchGrade} onChange={e => setSearchGrade(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:border-emerald-500">
+                  <option value="">All grades</option>
+                  <option value="sahih">Sahih ✅</option>
+                  <option value="hasan">Hasan 🟡</option>
+                  <option value="daif">Da&apos;if ⚠️</option>
+                </select>
+                {(searchTag || searchGrade) && (
+                  <button onClick={() => { setSearchTag(''); setSearchGrade('') }}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50">
+                    Clear filters
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={searchHadiths}
+                  disabled={searchLoading || (!searchQuery.trim() && !searchTag)}
+                  className="bg-emerald-700 text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-emerald-800 disabled:opacity-40 flex items-center gap-2">
+                  {searchLoading
+                    ? <><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />Searching…</>
+                    : '🔍 Search'}
+                </button>
+                <button onClick={() => { setSearchQuery(''); setSearchTag(''); setSearchGrade(''); setSearchResults([]); setSearchDone(false) }}
+                  className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+                  Clear
+                </button>
+              </div>
+              <div className="mt-3">
+                <span className="text-xs text-gray-400 mr-2">Popular:</span>
+                {['salah','fasting','iman','character','knowledge','taqwa'].map(tag => (
+                  <button key={tag} onClick={() => { setSearchTag(tag); setTimeout(searchHadiths, 100) }}
+                    className="text-xs px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 mr-1 mb-1">
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {searchDone && (
+              <div className="space-y-3">
+                <div className="text-xs text-gray-400">
+                  {searchResults.length === 0
+                    ? 'No hadiths found. Try different keywords or tags.'
+                    : `${searchResults.length} hadith${searchResults.length > 1 ? 's' : ''} found`}
+                </div>
+                {searchResults.map(h => (
+                  <div key={h.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:border-emerald-200 transition-colors">
+                    <div className="flex items-center gap-2 mb-3 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        h.grade === 'sahih' ? 'bg-green-100 text-green-700' :
+                        h.grade === 'hasan' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'}`}>{h.grade}</span>
+                      <span className="text-xs text-gray-500">{h.collection}</span>
+                      {h.hadith_number && <span className="text-xs text-gray-400">#{h.hadith_number}</span>}
+                      <span className="text-xs text-gray-400 ml-auto">{h.narrator}</span>
+                    </div>
+                    {h.text_arabic && (
+                      <div className="text-lg text-right leading-loose text-gray-800 mb-3 p-2 bg-gray-50 rounded-lg" dir="rtl">{h.text_arabic}</div>
+                    )}
+                    <div className="text-sm text-gray-700 leading-relaxed mb-3">{h.text_display || h.text_english}</div>
+                    <div className="mb-3">
+                      <TTSPlayer text={h.text_arabic || h.text_english} lang={h.text_arabic ? 'ar' : replyLang} label="Listen" />
+                    </div>
+                    {h.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {h.tags.map((tag: string) => (
+                          <button key={tag} onClick={() => { setSearchTag(tag); searchHadiths() }}
+                            className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100">
+                            #{tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      <CopyButton text={h.text_english || h.text_display} label="Copy" />
+                      {h.source_url && (
+                        <a href={h.source_url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                          View source ↗
+                        </a>
+                      )}
+                      <button onClick={() => { setPostText(h.text_english || h.text_display); setTab('analyze') }}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+                        Verify this hadith
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
     </div>
   )
