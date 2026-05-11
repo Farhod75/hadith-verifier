@@ -221,7 +221,7 @@ export default function Home() {
           <div className="relative flex-shrink-0">
             <button onClick={() => setShowLangMenu(!showLangMenu)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-              <span>{currentLang.flag}</span>
+              <span className="text-xs font-bold text-gray-500">{currentLang.flag}</span>
               <span className="text-gray-700">{currentLang.label}</span>
               <span className="text-gray-400 text-xs">▾</span>
             </button>

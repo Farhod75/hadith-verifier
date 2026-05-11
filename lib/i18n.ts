@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // HADITH VERIFIER â€” Internationalization (i18n)
 // App UI translations for EN, UZ Latin, UZ Cyrillic, RU, AR
 // ============================================================
@@ -6,12 +6,12 @@
 export type AppLang = 'en' | 'uz_latin' | 'uz_cyrillic' | 'ru' | 'ar' | 'tj'
 
 export const APP_LANGUAGES = [
-  { code: 'en' as AppLang, label: 'English', flag: 'ðŸ‡¬ðŸ‡§', dir: 'ltr' },
-  { code: 'uz_latin' as AppLang, label: "O'zbek", flag: 'ðŸ‡ºðŸ‡¿', dir: 'ltr' },
-  { code: 'uz_cyrillic' as AppLang, label: 'ÐŽÐ·Ð±ÐµÐº', flag: 'ðŸ‡ºðŸ‡¿', dir: 'ltr' },
-  { code: 'ru' as AppLang, label: 'Ð ÑƒÑÑÐºÐ¸Ð¹', flag: 'ðŸ‡·ðŸ‡º', dir: 'ltr' },
-  { code: 'ar' as AppLang, label: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©', flag: 'ðŸ‡¸ðŸ‡¦', dir: 'rtl' },
-  { code: 'tj' as AppLang, label: 'Ð¢Ð¾Ò·Ð¸ÐºÓ£', flag: 'ðŸ‡¹ðŸ‡¯', dir: 'ltr' }, // â† add this
+  { code: 'en' as AppLang,          label: 'English',  flag: 'GB', dir: 'ltr' },
+  { code: 'uz_latin' as AppLang,    label: "O'zbek",   flag: 'UZ', dir: 'ltr' },
+  { code: 'uz_cyrillic' as AppLang, label: 'Ўзбек',    flag: 'UZ', dir: 'ltr' },
+  { code: 'ru' as AppLang,          label: 'Русский',  flag: 'RU', dir: 'ltr' },
+  { code: 'ar' as AppLang,          label: 'العربية',  flag: 'AR', dir: 'rtl' },
+  { code: 'tj' as AppLang,          label: 'Тоҷикӣ',  flag: 'TJ', dir: 'ltr' },
 ]
 
 export type Translations = {
