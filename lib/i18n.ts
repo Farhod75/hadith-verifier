@@ -120,6 +120,10 @@ export type Translations = {
   searchViewSource: string
   searchListen: string
   searchClearFilters: string
+  // Add to Translations type:
+  searchGradeSahih: string
+  searchGradeHasan: string
+  searchGradeDaif: string
 }
 
 const translations: Record<AppLang, Translations> = {
@@ -210,6 +214,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'View source ↗',
     searchListen: 'Listen',
     searchClearFilters: 'Clear filters',
+    searchGradeSahih: 'Sahih ✅',
+    searchGradeHasan: 'Hasan 🟡',
+    searchGradeDaif: "Da'if ⚠️",
   },
 
   // ─── UZBEK LATIN ──────────────────────────────────────────
@@ -298,6 +305,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'Manbani ko\'rish ↗',
     searchListen: 'Tinglash',
     searchClearFilters: 'Filtrlarni tozalash',
+    searchGradeSahih: 'Sahih ✅',
+    searchGradeHasan: 'Hasan 🟡',
+    searchGradeDaif: "Zaif ⚠️",
   },
 
   // ─── UZBEK CYRILLIC ───────────────────────────────────────
@@ -386,6 +396,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'Манбани кўриш ↗',
     searchListen: 'Тинглаш',
     searchClearFilters: 'Фильтрларни тозалаш',
+    searchGradeSahih: 'Саҳиҳ ✅',
+    searchGradeHasan: 'Ҳасан 🟡',
+    searchGradeDaif: 'Заиф ⚠️',
   },
 
   // ─── RUSSIAN ──────────────────────────────────────────────
@@ -474,6 +487,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'Открыть источник ↗',
     searchListen: 'Слушать',
     searchClearFilters: 'Сбросить фильтры',
+    searchGradeSahih: 'Сахих ✅',
+    searchGradeHasan: 'Хасан 🟡',
+    searchGradeDaif: 'Даиф ⚠️',
   },
 
   // ─── ARABIC ───────────────────────────────────────────────
@@ -562,6 +578,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'عرض المصدر ↗',
     searchListen: 'استماع',
     searchClearFilters: 'مسح الفلاتر',
+    searchGradeSahih: 'صحيح ✅',
+    searchGradeHasan: 'حسن 🟡',
+    searchGradeDaif: 'ضعيف ⚠️',
   },
 
   // ─── TAJIK ────────────────────────────────────────────────
@@ -650,6 +669,9 @@ const translations: Record<AppLang, Translations> = {
     searchViewSource: 'Манбаро бинед ↗',
     searchListen: 'Гӯш кардан',
     searchClearFilters: 'Тозакунии фильтрҳо',
+    searchGradeSahih: 'Саҳеҳ ✅',
+    searchGradeHasan: 'Ҳасан 🟡',
+    searchGradeDaif: 'Заиф ⚠️',
   },
 }
 

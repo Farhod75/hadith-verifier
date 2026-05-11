@@ -47,9 +47,8 @@ export async function GET(req: NextRequest) {
   // Return translation based on requested lang
   const results = (data || []).map(h => ({
     ...h,
-    text_display: lang === 'uz' ? (h.text_uzbek || h.text_english)
-                : lang === 'ru' ? (h.text_russian || h.text_english)
-                : h.text_english,
+    text_display: h.text_english,
+    text_arabic_display: h.text_arabic,
   }))
 
   return NextResponse.json(results)

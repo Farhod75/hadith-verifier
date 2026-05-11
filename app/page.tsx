@@ -730,9 +730,9 @@ export default function Home() {
                 <select value={searchGrade} onChange={e => setSearchGrade(e.target.value)}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:border-emerald-500">
                   <option value="">{tr.searchAllGrades}</option>
-                  <option value="sahih">Sahih ✅</option>
-                  <option value="hasan">Hasan 🟡</option>
-                  <option value="daif">Da&apos;if ⚠️</option>
+                  <option value="sahih">{tr.searchGradeSahih}</option>
+                  <option value="hasan">{tr.searchGradeHasan}</option>
+                  <option value="daif">{tr.searchGradeDaif}</option>
                 </select>
                 {(searchTag || searchGrade) && (
                   <button onClick={() => { setSearchTag(''); setSearchGrade('') }}
