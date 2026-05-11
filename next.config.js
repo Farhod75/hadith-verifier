@@ -8,7 +8,7 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(self), geolocation=()' },
           {
             key: 'Content-Security-Policy',
             value: [
@@ -16,7 +16,7 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
-              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org",
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org https://api.elevenlabs.io",
               "font-src 'self'",
               "frame-ancestors 'none'",
             ].join('; ')
