@@ -17,6 +17,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org https://api.elevenlabs.io",
+             "media-src 'self' blob: https://cdn.islamic.network",
              "media-src 'self' blob:",
               "font-src 'self'",
               "frame-ancestors 'none'",

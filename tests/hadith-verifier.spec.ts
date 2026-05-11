@@ -337,8 +337,11 @@ test.describe('Mobile responsiveness', () => {
 test.describe('Clear functionality', () => {
   test('should clear textarea', async ({ page }) => {
     await page.goto('/')
+    // Line 340-342 — make selector more specific:
     await page.locator('textarea').first().fill('Some test text')
     await page.getByRole('button', { name: 'Clear' }).first().click()
+    // Wait for state update
+    await page.waitForTimeout(500)
     expect(await page.locator('textarea').first().inputValue()).toBe('')
   })
 })

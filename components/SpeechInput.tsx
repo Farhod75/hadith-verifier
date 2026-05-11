@@ -4,9 +4,9 @@ import { useState, useRef, useEffect } from 'react'
 const SPEECH_LANG_MAP: Record<string, string> = {
   en: 'en-US',
   ar: 'ar-SA',
-  uz: 'uz-UZ',
+  uz: 'ru-RU',   // Uzbek not supported by Web Speech API — Russian model closest
   ru: 'ru-RU',
-  tj: 'fa-IR',  // Tajik uses Persian speech recognition (closest available)
+  tj: 'ru-RU',   // Tajik not supported — Russian model closest
 }
 
 interface Props {

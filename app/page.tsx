@@ -285,7 +285,7 @@ export default function Home() {
                     className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50"
                     dir="auto" />
                   <div className="mt-2">
-                    <SpeechInput lang={replyLang} disabled={loading}
+                    <SpeechInput lang={replyLang === 'uz' ? 'uz' : replyLang === 'ru' ? 'ru' : replyLang === 'ar' ? 'ar' : 'en'} disabled={loading}
                       onTranscript={async (transcript) => {
                         setPostText(prev => prev ? prev + ' ' + transcript : transcript)
                         try {
