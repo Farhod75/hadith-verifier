@@ -221,7 +221,7 @@ export default function Home() {
           <div className="relative flex-shrink-0">
             <button onClick={() => setShowLangMenu(!showLangMenu)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm hover:bg-gray-50">
-              <span className="text-xs font-bold text-gray-500">{currentLang.flag}</span>
+              <span className="text-xs font-bold text-gray-600">{currentLang.flag}</span>
               <span className="text-gray-700">{currentLang.label}</span>
               <span className="text-gray-400 text-xs">▾</span>
             </button>
@@ -230,7 +230,7 @@ export default function Home() {
                 {APP_LANGUAGES.map(lang => (
                   <button key={lang.code} onClick={() => { setAppLang(lang.code); setShowLangMenu(false) }}
                     className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-gray-50 text-left ${appLang === lang.code ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'}`}>
-                    <span>{lang.flag}</span><span>{lang.label}</span>
+                    <span className="text-xs font-bold text-gray-500">{lang.flag}</span><span>{lang.label}</span>
                     {appLang === lang.code && <span className="ml-auto text-emerald-600">✓</span>}
                   </button>
                 ))}
@@ -704,13 +704,13 @@ export default function Home() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
-                Search Authenticated Hadith Library
+                {tr.searchTitle}
               </div>
               <div className="mb-3">
                 <input type="text" value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchHadiths()}
-                  placeholder="Search by keyword, narrator, or collection..."
+                  placeholder={tr.searchPlaceholder}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-gray-50" />
                 <div className="mt-2">
                   <SpeechInput lang={replyLang} disabled={searchLoading}
@@ -720,7 +720,7 @@ export default function Home() {
               <div className="flex gap-2 flex-wrap mb-3">
                 <select value={searchTag} onChange={e => setSearchTag(e.target.value)}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:border-emerald-500">
-                  <option value="">All tags</option>
+                  <option value="">{tr.searchAllTags}</option>
                   {['salah','fasting','ramadan','zakat','hajj','iman','quran','knowledge',
                     'character','charity','patience','gratitude','taqwa','brotherhood',
                     'family','heart','deeds','intentions','speech','forgiveness'].map(tag => (
@@ -729,7 +729,7 @@ export default function Home() {
                 </select>
                 <select value={searchGrade} onChange={e => setSearchGrade(e.target.value)}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:border-emerald-500">
-                  <option value="">All grades</option>
+                  <option value="">{tr.searchAllGrades}</option>
                   <option value="sahih">Sahih ✅</option>
                   <option value="hasan">Hasan 🟡</option>
                   <option value="daif">Da&apos;if ⚠️</option>
@@ -737,7 +737,7 @@ export default function Home() {
                 {(searchTag || searchGrade) && (
                   <button onClick={() => { setSearchTag(''); setSearchGrade('') }}
                     className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50">
-                    Clear filters
+                    {tr.searchClearFilters}
                   </button>
                 )}
               </div>
@@ -746,16 +746,16 @@ export default function Home() {
                   disabled={searchLoading || (!searchQuery.trim() && !searchTag)}
                   className="bg-emerald-700 text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-emerald-800 disabled:opacity-40 flex items-center gap-2">
                   {searchLoading
-                    ? <><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />Searching…</>
-                    : '🔍 Search'}
+                  ? <><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />{tr.searchBtn}…</>
+                  : `🔍 ${tr.searchBtn}`}
                 </button>
                 <button onClick={() => { setSearchQuery(''); setSearchTag(''); setSearchGrade(''); setSearchResults([]); setSearchDone(false) }}
                   className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
-                  Clear
+                  {tr.clear}
                 </button>
               </div>
               <div className="mt-3">
-                <span className="text-xs text-gray-400 mr-2">Popular:</span>
+                <span className="text-xs text-gray-400 mr-2">{tr.searchPopular}:</span>
                 {['salah','fasting','iman','character','knowledge','taqwa'].map(tag => (
                   <button key={tag} onClick={() => { setSearchTag(tag); setTimeout(searchHadiths, 100) }}
                     className="text-xs px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700 mr-1 mb-1">
@@ -769,8 +769,8 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="text-xs text-gray-400">
                   {searchResults.length === 0
-                    ? 'No hadiths found. Try different keywords or tags.'
-                    : `${searchResults.length} hadith${searchResults.length > 1 ? 's' : ''} found`}
+                    ? tr.searchNoResults
+                    : `${searchResults.length} ${tr.searchFound}`}
                 </div>
                 {searchResults.map(h => (
                   <div key={h.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:border-emerald-200 transition-colors">
@@ -788,7 +788,7 @@ export default function Home() {
                     )}
                     <div className="text-sm text-gray-700 leading-relaxed mb-3">{h.text_display || h.text_english}</div>
                     <div className="mb-3">
-                      <TTSPlayer text={h.text_arabic || h.text_english} lang={h.text_arabic ? 'ar' : replyLang} label="Listen" />
+                      <TTSPlayer text={h.text_arabic || h.text_english} lang={h.text_arabic ? 'ar' : replyLang} label={tr.searchListen} />
                     </div>
                     {h.tags?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-3">
@@ -801,16 +801,16 @@ export default function Home() {
                       </div>
                     )}
                     <div className="flex gap-2 flex-wrap">
-                      <CopyButton text={h.text_english || h.text_display} label="Copy" />
+                      <CopyButton text={h.text_english || h.text_display} label={tr.copyBtn} />
                       {h.source_url && (
                         <a href={h.source_url} target="_blank" rel="noopener noreferrer"
                           className="text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                          View source ↗
+                          {tr.searchViewSource} ↗
                         </a>
                       )}
                       <button onClick={() => { setPostText(h.text_english || h.text_display); setTab('analyze') }}
                         className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
-                        Verify this hadith
+                        {tr.searchVerifyHadith}
                       </button>
                     </div>
                   </div>
