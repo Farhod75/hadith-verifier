@@ -254,7 +254,7 @@ export default function Home() {
             { key: 'dua',     label: tr.tabDua },
             { key: 'sources', label: tr.tabSources },
             { key: 'admin',   label: tr.tabAdmin + (queue.length ? ` (${queue.length})` : '') },
-            { key: 'search',  label: '🔍 Search' },
+            { key: 'search',  label: `🔍 ${tr.tabSearch || 'Search'}` },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
               className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === key ? 'border-emerald-600 text-emerald-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
