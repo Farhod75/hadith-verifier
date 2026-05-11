@@ -45,11 +45,19 @@ export async function GET(req: NextRequest) {
   }
 
   // Return translation based on requested lang
-  const results = (data || []).map(h => ({
+  // Change the text_display mapping:
+    const results = (data || []).map(h => ({
     ...h,
-    text_display: h.text_english,
-    text_arabic_display: h.text_arabic,
-  }))
+    text_display: lang === 'uz_latin' || lang === 'uz_cyrillic' 
+        ? (h.text_uzbek || h.text_english)
+        : lang === 'ru' 
+        ? (h.text_russian || h.text_english)
+        : lang === 'tj'
+        ? (h.text_russian || h.text_english)  // use Russian as fallback for Tajik
+        : lang === 'ar'
+        ? h.text_english  // Arabic users read the Arabic text directly
+        : h.text_english,
+    }))
 
   return NextResponse.json(results)
 }

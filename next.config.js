@@ -16,7 +16,8 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
-              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org https://api.elevenlabs.io",
+             "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org https://api.elevenlabs.io",
+             "media-src 'self' blob:",
               "font-src 'self'",
               "frame-ancestors 'none'",
             ].join('; ')

@@ -713,7 +713,12 @@ export default function Home() {
                   placeholder={tr.searchPlaceholder}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 bg-gray-50" />
                 <div className="mt-2">
-                  <SpeechInput lang={replyLang} disabled={searchLoading}
+                  <SpeechInput 
+                    lang={appLang === 'uz_cyrillic' || appLang === 'uz_latin' ? 'uz' : 
+                          appLang === 'ar' ? 'ar' :
+                          appLang === 'ru' ? 'ru' :
+                          appLang === 'tj' ? 'tj' : 'en'}
+                    disabled={searchLoading}
                     onTranscript={transcript => setSearchQuery(transcript)} />
                 </div>
               </div>
