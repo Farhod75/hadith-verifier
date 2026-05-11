@@ -1165,3 +1165,37 @@ vercel env add KEY_NAME preview
 # Development reads from .env.local automatically
 ```
 **Status:** DOCUMENTED — May 2026
+
+## ════════════════════════════════════════════════════════
+## PATTERN 40: EADDRINUSE port 3001 — webServer config mismatch
+## ════════════════════════════════════════════════════════
+**ID:** P040
+**Type:** Developer environment / Playwright config
+**Symptom:**
+  - EADDRINUSE: address already in use :::3001
+  - Failed to start server
+  - Error: Process from config.webServer exited early
+
+**Root cause:**
+  playwright.config.ts webServer was configured for port 3000
+  but dev server runs on 3001 (another app occupies 3000)
+
+**Fix in playwright.config.ts:**
+```typescript
+webServer: process.env.CI ? undefined : {
+  command: 'npm run dev -- -p 3001',
+  url: 'http://localhost:3001',
+  reuseExistingServer: true,
+  timeout: 30000,
+},
+use: {
+  baseURL: process.env.BASE_URL || 'http://localhost:3001',
+}
+```
+
+**For local runs always use production URL:**
+```powershell
+$env:BASE_URL = "https://hadithverifier.com"
+npx playwright test tests/language-speech.spec.ts --workers=1
+```
+**Status:** FIXED — May 2026
