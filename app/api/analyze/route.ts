@@ -1,9 +1,9 @@
 // app/api/analyze/route.ts
-// Full ready-to-paste file
-// Changes from previous version:
-//   + seerah_context field added to Claude JSON prompt
-//   + seerah_context included in response passthrough
-//   All other logic (rate limiting, severity, queue save) unchanged
+// Handles both:
+//   - FormData: image upload (image file + optional postText + lang)
+//   - JSON: text-only analysis (postText + lang)
+// Added: seerah_context field in Claude prompt
+// Fixed: P041 — new route was JSON-only, broke FormData image upload path
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
@@ -14,31 +14,28 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 // ─── Rate limiting (in-memory) ────────────────────────────────────────────────
 const globalDaily = { count: 0, date: '' }
 const ipHourly    = new Map<string, { count: number; hour: string }>()
-
 const DAILY_CAP   = 500
 const HOURLY_CAP  = 20
 
 function getRateLimitMsg(lang: string): string {
   if (lang === 'ar') return 'تم تجاوز الحد اليومي. يُرجى المحاولة غداً.'
   if (lang === 'ru') return 'Суточный лимит исчерпан. Попробуйте завтра.'
-  if (lang === 'uz') return 'Kunlik limit tugadi. Ertaga urinib ko\'ring.'
+  if (lang === 'uz' || lang === 'uz_cyrillic' || lang === 'uz_latin')
+    return 'Kunlik limit tugadi. Ertaga urinib ko\'ring.'
   return 'Daily limit reached. Please try again tomorrow.'
 }
 
 function checkRateLimit(ip: string, lang: string): { limited: boolean; message: string } {
   const today = new Date().toISOString().slice(0, 10)
   const hour  = new Date().toISOString().slice(0, 13)
-
   if (globalDaily.date !== today) { globalDaily.date = today; globalDaily.count = 0 }
   if (globalDaily.count >= DAILY_CAP) return { limited: true, message: getRateLimitMsg(lang) }
   globalDaily.count++
-
   const ipEntry = ipHourly.get(ip) || { count: 0, hour: '' }
   if (ipEntry.hour !== hour) { ipEntry.count = 0; ipEntry.hour = hour }
   if (ipEntry.count >= HOURLY_CAP) return { limited: true, message: getRateLimitMsg(lang) }
   ipEntry.count++
   ipHourly.set(ip, ipEntry)
-
   return { limited: false, message: '' }
 }
 
@@ -63,7 +60,7 @@ You respond ONLY with valid JSON. No markdown, no backticks, no preamble.`
 // ─── Language instruction ─────────────────────────────────────────────────────
 function getLangInstruction(lang: string): string {
   if (lang === 'uz' || lang === 'uz_cyrillic')
-    return 'Write ALL text fields (analysis, claim_summary, authentic_alternative, suggested_comment, seerah_context) in UZBEK CYRILLIC script (Ўзбек Кириллча). Every single character of output text must be in Cyrillic. Do NOT use Latin script for Uzbek.'
+    return 'Write ALL text fields (analysis, claim_summary, authentic_alternative, suggested_comment, seerah_context) in UZBEK CYRILLIC script (Ўзбек Кириллча). Every character must be Cyrillic. Do NOT use Latin.'
   if (lang === 'uz_latin')
     return 'Write ALL text fields in Uzbek Latin script (O\'zbek lotin).'
   if (lang === 'ru')
@@ -78,64 +75,92 @@ function getLangInstruction(lang: string): string {
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const ip   = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-    const body = await req.json().catch(() => ({}))
-    const { postText, lang = 'en', imageBase64, imageMediaType } = body
+    const ip          = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const contentType = req.headers.get('content-type') || ''
 
+    // ── Parse request — FormData (image upload) OR JSON (text) ───────────────
+    let postText      = ''
+    let lang          = 'en'
+    let imageBase64   = ''
+    let imageMediaType = 'image/jpeg'
+
+    if (contentType.includes('multipart/form-data')) {
+      // Image upload path — frontend sends FormData
+      const formData = await req.formData()
+      postText       = (formData.get('postText') as string) || ''
+      lang           = (formData.get('lang')     as string) || 'en'
+      const imageFile = formData.get('image') as File | null
+      if (imageFile) {
+        const bytes    = await imageFile.arrayBuffer()
+        imageBase64    = Buffer.from(bytes).toString('base64')
+        imageMediaType = imageFile.type || 'image/jpeg'
+      }
+    } else {
+      // Text-only path — frontend sends JSON
+      const body = await req.json().catch(() => ({}))
+      postText   = body.postText || ''
+      lang       = body.lang     || 'en'
+      // Also accept pre-encoded base64 image from JSON (future use)
+      if (body.imageBase64) {
+        imageBase64    = body.imageBase64
+        imageMediaType = body.imageMediaType || 'image/jpeg'
+      }
+    }
+
+    // ── Validate ──────────────────────────────────────────────────────────────
     if (!postText?.trim() && !imageBase64) {
       return NextResponse.json({ error: 'Post text or image required' }, { status: 400 })
     }
 
+    // ── Rate limit ────────────────────────────────────────────────────────────
     const { limited, message } = checkRateLimit(ip, lang)
     if (limited) return NextResponse.json({ error: message }, { status: 429 })
 
-    const langInstruction = getLangInstruction(lang)
-
     // ── Build prompt ──────────────────────────────────────────────────────────
-    const userPrompt = `
-${langInstruction}
+    const langInstruction = getLangInstruction(lang)
+    const inputDescription = imageBase64
+      ? `[Analyze the uploaded screenshot image]${postText ? ` Additional context: ${postText}` : ''}`
+      : `"""${postText}"""`
+
+    const userPrompt = `${langInstruction}
 
 Analyze this social media post for hadith authenticity:
-"""
-${postText || '[Analyze the uploaded image]'}
-"""
+${inputDescription}
 
-Respond with ONLY this JSON structure (no markdown, no backticks):
+Respond with ONLY this JSON (no markdown, no backticks):
 {
   "verdict": "fabricated | weak | authentic | unclear | no_hadith",
   "confidence": "high | medium | low",
   "severity": "CRITICAL | HIGH | MEDIUM | LOW",
-  "claim_summary": "One sentence describing what hadith/claim is being made",
-  "analysis": "2-3 sentences explaining why this verdict. Cite specific isnad issues, narrator problems, or authentication evidence.",
-  "authentic_alternative": "If fabricated/weak: what the authentic teaching actually says. If authentic: confirmation with collection reference.",
+  "claim_summary": "One sentence: what hadith or claim is being made",
+  "analysis": "2-3 sentences: why this verdict. Cite isnad issues, narrator problems, or authentication evidence.",
+  "authentic_alternative": "If fabricated/weak: what authentic teaching actually says. If authentic: confirmation with collection reference.",
   "red_flags": [
-    "List each specific red flag found (e.g. 'No isnad chain', 'Reward inflation pattern', 'Not found in any major collection')"
+    "Each specific red flag e.g. 'No isnad chain', 'Reward inflation pattern', 'Not in any major collection'"
   ],
   "references": [
     {
       "source": "Full collection name e.g. Sahih al-Bukhari",
-      "description": "Brief note on what this source says about the claim",
-      "url": "Direct deep-link e.g. https://sunnah.com/bukhari:1234 or https://dorar.net/hadith/... or https://islamqa.info/en/answers/...",
+      "description": "What this source says about the claim",
+      "url": "Direct deep-link e.g. https://sunnah.com/bukhari:1234",
       "authority": "tier1 | tier2 | tier3"
     }
   ],
-  "suggested_comment": "A compassionate, non-confrontational reply in the language specified above. Include: (1) gentle correction, (2) authentic alternative if applicable, (3) verified source link. Written as if responding to a family member sharing the post in good faith.",
-  "seerah_context": "A 2-3 sentence story from the life of the Prophet ﷺ (from Ar-Raheeq Al-Makhtum / Seerah sources) that gives human emotional context to why this hadith topic matters — or why protecting authentic knowledge is important. Write in the same language as all other fields. For 'no_hadith' verdict, return empty string."
+  "suggested_comment": "Compassionate non-confrontational reply. Include: (1) gentle correction, (2) authentic alternative, (3) verified source link. Written as if to a family member sharing in good faith.",
+  "seerah_context": "2-3 sentence story from the Prophet's life ﷺ (from Ar-Raheeq Al-Makhtum / Seerah) giving human emotional context to why this topic matters. Same language as all other fields. Empty string if no_hadith verdict."
 }
 
-CRITICAL RULES:
-1. URLs must be real deep-links to specific hadiths — not just homepages
-2. Tier 1 sources: sunnah.com, dorar.net, hadeethenc.com
-3. Tier 2 sources: islamqa.info, islamweb.net, yaqeeninstitute.org
-4. seerah_context must be warm, human, and story-like — not academic
-5. If verdict is 'no_hadith', still provide seerah_context about honesty in Islamic tradition
-6. All text fields must be in the requested language: ${lang}
-`
+RULES:
+1. URLs must be real deep-links — not homepages
+2. Tier 1: sunnah.com, dorar.net, hadeethenc.com
+3. Tier 2: islamqa.info, islamweb.net, yaqeeninstitute.org
+4. seerah_context must be warm and story-like — not academic
+5. All text fields in language: ${lang}`
 
-    // ── Build message content (text or image) ─────────────────────────────────
+    // ── Build message content ─────────────────────────────────────────────────
     const messageContent: any[] = imageBase64
       ? [
-          { type: 'image', source: { type: 'base64', media_type: imageMediaType || 'image/jpeg', data: imageBase64 } },
+          { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
           { type: 'text', text: userPrompt }
         ]
       : [{ type: 'text', text: userPrompt }]
@@ -153,14 +178,14 @@ CRITICAL RULES:
     try {
       result = JSON.parse(raw.replace(/```json|```/g, '').trim())
     } catch {
-      console.error('Parse error. Raw response:', raw.slice(0, 500))
+      console.error('Parse error. Raw:', raw.slice(0, 300))
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
 
     // ── Override severity with deterministic scoring ───────────────────────────
     result.severity = getSeverity(result.verdict, result.confidence)
 
-    // ── Save to queue if fabricated or weak ───────────────────────────────────
+    // ── Save fabricated/weak to queue ─────────────────────────────────────────
     if (['fabricated', 'weak'].includes(result.verdict)) {
       try {
         const sb = createClient(
@@ -175,8 +200,8 @@ CRITICAL RULES:
           claim_summary:     result.claim_summary,
           suggested_comment: result.suggested_comment,
           lang,
-          red_flags:         result.red_flags || [],
-          references:        result.references || [],
+          red_flags:         result.red_flags   || [],
+          references:        result.references  || [],
           created_at:        new Date().toISOString()
         })
       } catch (dbErr) {
