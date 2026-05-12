@@ -405,3 +405,84 @@ Copy-Item "QA_STANDARDS_AGENT_RULES.md" `
 ---
 *Last updated: May 2026 · Farhod Elbekov · ISTQB CT-AI #26-CT-AI-00063-USA*
 *Next review: June 2026*
+## ════════════════════════════════════════════════════════
+## ADDENDUM TO QA_STANDARDS_AGENT_RULES.md
+## Section 6 additions — CI workflow rules (P044, P045)
+## Append to bottom of QA_STANDARDS_AGENT_RULES.md Section 6
+## ════════════════════════════════════════════════════════
+
+### 6.5 CI yml must NEVER contain (P045)
+These step types cause non-deterministic CI failures:
+```yaml
+# NEVER add these to push-triggered CI steps:
+- name: Run Audit tests          # real Claude × 14+ calls
+- name: Run language-speech tests # real ElevenLabs calls
+- name: Run @real-api tests       # any tagged real-api tests
+```
+
+### 6.6 Correct CI yml structure (permanent template)
+```yaml
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:             # manual trigger for audit
+    inputs:
+      run_audit:
+        description: 'Run audit against production'
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+jobs:
+  test:                         # runs on every push
+    steps:
+      - Run API tests            # mocked severity unit tests
+      - Run E2E tests            # all page.route() mocked
+      # NO audit step
+      # NO language-speech step
+
+  audit:                        # manual dispatch ONLY
+    if: github.event_name == 'workflow_dispatch' && inputs.run_audit == 'true'
+    steps:
+      - Run audit_spec.ts        # real Claude, post-deploy
+```
+
+### 6.7 CI timeout budget
+- Push CI timeout: 20 minutes maximum (was 55 — wasteful)
+- If tests need >20 min → too many real API calls in CI suite
+- Target: all CI push tests in <5 minutes
+
+### 6.8 Deterministic vs non-deterministic test separation
+ALWAYS ask: "Does this test need Claude to return a specific value?"
+- YES → it is a non-deterministic test → mock it OR tag @real-api
+- NO  → it tests deterministic logic → unit test it directly
+
+Examples:
+  getSeverity() → pure function → unit test (no Claude)
+  UI renders verdict badge → rendering test → mock API response
+  Claude returns valid enum → schema test → real Claude OK (just enum check)
+  Claude returns Arabic text → language test → mock with Arabic MOCK_RESPONSE
+  Claude returns compassionate tone → quality test → audit_spec (post-deploy)
+
+### 6.9 How to run audit manually (two options — add to all project READMEs)
+Option A — PowerShell (local):
+```powershell
+$env:BASE_URL="https://[your-production-url].com"
+npx playwright test tests/audit_spec.ts --reporter=list
+```
+
+Option B — GitHub Actions manual dispatch:
+1. GitHub → your repo → Actions tab
+2. Select workflow "Hadith Verifier CI/CD"
+3. Click "Run workflow" dropdown
+4. Set run_audit = true
+5. Click "Run workflow"
+
+### 6.10 Spec file naming convention (P045 lesson)
+ALWAYS use underscores in spec filenames — NEVER dots except the .spec extension:
+  ✅ audit_spec.ts
+  ✅ api_spec.ts
+  ✅ hadith_verifier_spec.ts
+  ❌ audit.spec.ts  ← dot before spec causes yml path mismatch
+When CI yml references a file, verify exact filename with:
+  Get-ChildItem tests/ -Filter "*.spec.ts"
