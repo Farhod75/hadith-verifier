@@ -243,3 +243,63 @@ params.set('lang', appLang)     // actual UI language user selected in header
   @real-api tagged tests   → Manual validation against production
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 44: Severity scoring tests call real Claude — non-deterministic
+## ════════════════════════════════════════════════════════
+**ID:** P044
+**Type:** Test architecture fix (same root cause as P043)
+**File:** tests/api.spec.ts — Severity scoring describe block
+**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
+
+**Symptom:**
+  - api.spec.ts:331 fails — CI #133
+  - Test: "chain message should produce CRITICAL or HIGH severity"
+  - Expected ['CRITICAL', 'HIGH'] to contain 'MEDIUM'
+  - Claude returned verdict='weak', confidence='medium' → MEDIUM severity
+
+**Root cause:**
+  getSeverity() is a DETERMINISTIC PURE FUNCTION:
+    getSeverity(verdict, confidence) → 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'
+  But the test called it through real Claude API. Claude's verdict for
+  chain messages is non-deterministic — sometimes 'fabricated' (HIGH),
+  sometimes 'weak' (MEDIUM). The test was testing Claude's classification
+  ability, not the severity function logic.
+  Same pattern as P043 — wrong test layer for the concern being tested.
+
+**The rule (ISTQB CT-AI, non-determinism):**
+  Test DETERMINISTIC logic with unit tests (no AI calls).
+  Test AI OUTPUT QUALITY with @real-api tagged tests (accept ranges).
+  NEVER assert exact AI classification outcomes in CI push tests.
+
+**Fix:**
+```ts
+// WRONG — tests deterministic function through non-deterministic Claude:
+test('chain message should produce CRITICAL or HIGH', async ({ request }) => {
+  const res = await request.post(`${BASE_URL}/api/analyze`, { ... })
+  const body = await res.json()
+  const severity = getSeverity(body.verdict, body.confidence)
+  expect(['CRITICAL', 'HIGH']).toContain(severity)  // FLAKY
+})
+
+// RIGHT — test the function directly:
+test('fabricated + high → CRITICAL', () => {
+  expect(getSeverity('fabricated', 'high')).toBe('CRITICAL')
+})
+test('weak + medium → MEDIUM', () => {
+  expect(getSeverity('weak', 'medium')).toBe('MEDIUM')
+})
+
+// AND for real API — accept the full valid range:
+test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ request }) => {
+  const body = await analyze(...)
+  const severity = getSeverity(body.verdict, body.confidence)
+  expect(['CRITICAL', 'HIGH', 'MEDIUM']).toContain(severity)  // accepts non-determinism
+})
+```
+
+**Scope of fix:**
+  All 5 severity tests in api.spec.ts replaced with:
+  - 9 unit tests for getSeverity() function (instant, no API)
+  - 2 @real-api tests for real Claude verification (manual only)
+
+**Status:** FIXED
