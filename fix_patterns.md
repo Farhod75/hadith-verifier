@@ -363,3 +363,110 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   - 2 @real-api tests for real Claude verification (manual only)
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 44: Severity scoring tests call real Claude — non-deterministic
+## ════════════════════════════════════════════════════════
+**ID:** P044
+**Type:** Test architecture fix (same root cause as P043)
+**File:** tests/api.spec.ts — Severity scoring describe block
+**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
+
+**Symptom:**
+  - api.spec.ts:331 fails — CI #133
+  - Test: "chain message should produce CRITICAL or HIGH severity"
+  - Expected ['CRITICAL', 'HIGH'] to contain 'MEDIUM'
+  - Claude returned verdict='weak', confidence='medium' → MEDIUM severity
+
+**Root cause:**
+  getSeverity() is a DETERMINISTIC PURE FUNCTION:
+    getSeverity(verdict, confidence) → 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'
+  But the test called it through real Claude API. Claude's verdict for
+  chain messages is non-deterministic — sometimes 'fabricated' (HIGH),
+  sometimes 'weak' (MEDIUM). The test was testing Claude's classification
+  ability, not the severity function logic.
+  Same pattern as P043 — wrong test layer for the concern being tested.
+
+**The rule (ISTQB CT-AI, non-determinism):**
+  Test DETERMINISTIC logic with unit tests (no AI calls).
+  Test AI OUTPUT QUALITY with @real-api tagged tests (accept ranges).
+  NEVER assert exact AI classification outcomes in CI push tests.
+
+**Fix:**
+```ts
+// WRONG — tests deterministic function through non-deterministic Claude:
+test('chain message should produce CRITICAL or HIGH', async ({ request }) => {
+  const res = await request.post(`${BASE_URL}/api/analyze`, { ... })
+  const body = await res.json()
+  const severity = getSeverity(body.verdict, body.confidence)
+  expect(['CRITICAL', 'HIGH']).toContain(severity)  // FLAKY
+})
+
+// RIGHT — test the function directly:
+test('fabricated + high → CRITICAL', () => {
+  expect(getSeverity('fabricated', 'high')).toBe('CRITICAL')
+})
+test('weak + medium → MEDIUM', () => {
+  expect(getSeverity('weak', 'medium')).toBe('MEDIUM')
+})
+
+// AND for real API — accept the full valid range:
+test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ request }) => {
+  const body = await analyze(...)
+  const severity = getSeverity(body.verdict, body.confidence)
+  expect(['CRITICAL', 'HIGH', 'MEDIUM']).toContain(severity)  // accepts non-determinism
+})
+```
+
+**Scope of fix:**
+  All 5 severity tests in api.spec.ts replaced with:
+  - 9 unit tests for getSeverity() function (instant, no API)
+  - 2 @real-api tests for real Claude verification (manual only)
+
+**Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 45: audit_spec.ts runs in CI — 14 real Claude calls, all flaky
+## ════════════════════════════════════════════════════════
+**ID:** P045
+**Type:** Test architecture fix (CI exclusion)
+**File:** playwright.config.ts
+**Commit:** fix: exclude audit_spec from CI push — post-deploy only (P045)
+
+**Symptom:**
+  - audit_spec.ts: 14 failed in CI #135
+  - Failures: Islamic greeting (EN/RU/TJ), prompt injection (5 payloads),
+    content safety, language compliance (AR/RU), language audit (UZ)
+  - All calling real Claude API in CI
+
+**Root cause:**
+  audit_spec.ts is a POST-DEPLOY audit tool, not a CI push test.
+  It calls real Claude API for:
+    - Greeting compliance: 5 languages × real Claude = 5 calls
+    - Prompt injection: 5 payloads × real Claude = 5 calls
+    - Language compliance: 3 languages × real Claude = 3 calls
+    - Content safety: 1 real Claude call
+  Total: 14+ real Claude API calls per CI run.
+  All non-deterministic. Claude sometimes responds in wrong language,
+  sometimes greeting varies, sometimes injection resistance varies.
+  This was ALWAYS a post-deploy audit tool — it was NEVER meant for CI.
+
+**Fix:**
+  Exclude audit_spec.ts from CI runs via playwright.config.ts:
+  testIgnore: IS_CI ? ['**/audit_spec.ts'] : []
+
+  Also: disable Firefox in CI (doubles run time, same failures):
+  projects: IS_CI ? [chromium only] : [chromium + firefox]
+
+**How to run audit_spec manually (post-deploy):**
+  # Against production:
+  $env:BASE_URL="https://hadithverifier.com"
+  npx playwright test tests/audit_spec.ts --reporter=list
+
+  # Against localhost:
+  npx playwright test tests/audit_spec.ts
+
+**Rule going forward:**
+  Any test file that calls real Claude/ElevenLabs/Remotion must be
+  excluded from CI via testIgnore OR grep pattern.
+  The CI workflow should only run tests that complete in <5 minutes.
+
+**Status:** FIXED
