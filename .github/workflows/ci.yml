@@ -1,40 +1,62 @@
 name: Hadith Verifier CI/CD
+
 on:
   push:
     branches: [main]
- 
+  # Manual trigger — run audit + real-api tests on demand
+  workflow_dispatch:
+    inputs:
+      run_audit:
+        description: 'Run audit tests against production'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
 jobs:
   test:
     name: Playwright Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      # ── P045: API tests — severity now unit-tested (no real Claude for severity)
       - name: Run API tests
         run: npx playwright test tests/api.spec.ts --reporter=list --workers=1 --project=chromium
         env:
           BASE_URL: https://hadithverifier.com
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # ── P043: E2E tests — all mocked, no real Claude calls
       - name: Run E2E tests
         run: npx playwright test tests/hadith-verifier.spec.ts --reporter=list --workers=1 --project=chromium
         env:
           BASE_URL: https://hadithverifier.com
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      - name: Run Audit tests
-        run: npx playwright test tests/audit.spec.ts --reporter=list --workers=1 --project=chromium
-        env:
-          BASE_URL: https://hadithverifier.com
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # ── P045: Audit tests REMOVED from CI push
+      # Audit calls real Claude 14+ times — non-deterministic, always flaky
+      # Run manually: $env:BASE_URL="https://hadithverifier.com"; npx playwright test tests/audit_spec.ts
+      # Or trigger via GitHub Actions → Run workflow → run_audit=true
+
+      # ── P045: language-speech tests REMOVED from CI push
+      # Calls real ElevenLabs API — non-deterministic, CSP issues in CI
+      # Run manually after deploy to verify TTS/STT on production
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -42,6 +64,7 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+
       - name: Upload screenshots on failure
         uses: actions/upload-artifact@v4
         if: failure()
@@ -49,9 +72,39 @@ jobs:
           name: test-screenshots
           path: test-results/
           retention-days: 7
-      - name: Run language + speech tests
-        run: npx playwright test tests/language-speech.spec.ts --reporter=list --workers=1
+
+  # ── Audit job — only runs on manual workflow_dispatch with run_audit=true
+  audit:
+    name: Post-Deploy Audit (manual only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_audit == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Audit tests (post-deploy)
+        run: npx playwright test tests/audit_spec.ts --reporter=list --workers=1 --project=chromium
         env:
           BASE_URL: https://hadithverifier.com
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }} 
-          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-report
+          path: playwright-report/
+          retention-days: 30

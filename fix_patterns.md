@@ -470,3 +470,53 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   The CI workflow should only run tests that complete in <5 minutes.
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 45 (updated): audit + language-speech in CI yml
+## ════════════════════════════════════════════════════════
+**ID:** P045
+**Type:** CI architecture fix
+**File:** .github/workflows/ci.yml
+**Commit:** fix: remove audit + language-speech from CI push workflow (P045)
+
+**Symptom:**
+  - CI #135, #136: 18 failed audit tests — real Claude calls in CI
+  - "No tests found" locally for audit_spec.ts
+  - language-speech.spec.ts also calls real ElevenLabs in CI
+
+**Root cause 1 — filename mismatch:**
+  CI yml calls: tests/audit.spec.ts (dot)
+  Actual file:  tests/audit_spec.ts (underscore)
+  → "No tests found" error locally when using dot version
+
+**Root cause 2 — wrong yml architecture:**
+  playwright.config.ts testIgnore does NOT work when CI yml
+  calls specific file paths directly with:
+    npx playwright test tests/audit.spec.ts
+  The yml bypasses playwright.config.ts testIgnore entirely.
+  The ONLY fix is to remove the step from ci.yml.
+
+**Root cause 3 — real API calls in CI:**
+  audit_spec.ts: 18 real Claude calls (greeting×5, injection×5, safety, language×3...)
+  language-speech.spec.ts: real ElevenLabs calls
+  All non-deterministic → always flaky in CI
+
+**Fix:**
+  1. Remove "Run Audit tests" step from ci.yml push trigger
+  2. Remove "Run language + speech tests" step from ci.yml push trigger
+  3. Add workflow_dispatch trigger with run_audit input
+  4. Move audit to separate job that only runs on manual dispatch
+  5. Reduce timeout-minutes from 55 → 20 (push CI should be fast)
+
+**How to run audit manually:**
+  Option A — PowerShell:
+    $env:BASE_URL="https://hadithverifier.com"
+    npx playwright test tests/audit_spec.ts --reporter=list
+
+  Option B — GitHub Actions manual trigger:
+    GitHub → Actions → Hadith Verifier CI/CD → Run workflow → run_audit=true
+
+**File naming rule going forward:**
+  Use underscores consistently: audit_spec.ts, api_spec.ts
+  Never mix dots and underscores in spec file names
+
+**Status:** FIXED
