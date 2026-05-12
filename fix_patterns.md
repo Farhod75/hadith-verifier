@@ -95,3 +95,43 @@ uses transliteration in compassionate Arabic comments (non-determinism, P014).
 evaluating the comment block.
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 39: Search tab shows English only for UZ/RU users
+## ════════════════════════════════════════════════════════
+**ID:** P039
+**Type:** Bug fix (wrong state variable)
+**File:** app/page.tsx — searchHadiths() function
+**Commit:** fix: search uses appLang not replyLang for translation display (P039)
+
+**Symptom:**
+  - User switches app to Ўзбек (uz_cyrillic) or Русский (ru)
+  - Searches "fasting" or any keyword
+  - Hadith card shows Arabic + English instead of Arabic + Uzbek/Russian
+  - text_display field in card shows English regardless of app language
+
+**Root cause:**
+  searchHadiths() sends `lang` param using `replyLang` state variable.
+  `replyLang` controls the ANALYZE TAB comment language — defaults to 'en'
+  and only changes when user clicks EN/UZ/AR/RU reply buttons.
+  The search route uses `lang` param to pick which text_* column to return
+  as `text_display`. Since replyLang is always 'en' unless manually changed,
+  route always returns text_english regardless of app UI language (appLang).
+
+**Fix — one word change, line 123 page.tsx:**
+```ts
+// WRONG:
+params.set('lang', replyLang)   // analyze tab reply lang, default 'en'
+
+// RIGHT:
+params.set('lang', appLang)     // actual UI language user selected in header
+```
+
+**Why appLang works directly:**
+  appLang values: 'en' | 'uz_latin' | 'uz_cyrillic' | 'ru' | 'ar' | 'tj'
+  Search route lang param accepts same values exactly — no mapping needed.
+
+**State variables clarified:**
+  replyLang → language of GENERATED COMMENT in Analyze tab (EN/UZ/AR/RU)
+  appLang   → language of the APP UI + Search tab translation display
+
+**Status:** FIXED
