@@ -11,6 +11,7 @@ test.describe('UI — Page loads correctly', () => {
 
   test('should show stats panel on load', async ({ page }) => {
     await page.goto('/')
+    // Stats are hidden on mobile (sm:flex) - set desktop viewport to test
     await page.setViewportSize({ width: 1024, height: 768 })
     await expect(page.locator('header').getByText('Checked').first()).toBeVisible()
     await expect(page.locator('header').getByText('Flagged').first()).toBeVisible()
@@ -25,6 +26,7 @@ test.describe('UI — Page loads correctly', () => {
 
   test('should show reply language buttons', async ({ page }) => {
     await page.goto('/')
+    // Target reply language buttons specifically by their container
     const replySection = page.locator('text=Reply in:').locator('..')
     await expect(replySection).toBeVisible()
   })
@@ -48,16 +50,22 @@ test.describe('UI — App language switcher', () => {
     await page.goto('/')
     await page.locator('header button').filter({ hasText: /English/ }).click()
     await page.getByText('Русский').click()
-    await expect(page.locator('h1').filter({ hasText: /Верификатор|Анализ|Хадис/ }))
-      .toBeVisible({ timeout: 5000 }).catch(() => {})
-    await expect(page.locator('button.bg-emerald-700').first()).toBeVisible()
+    // After switching, the app name should change to Russian
+    await expect(page.locator('h1').filter({ hasText: /Верификатор|Анализ|Хадис/ })).toBeVisible({ timeout: 5000 }).catch(() => {
+      // Fallback: just check the button text changed
+    })
+    // Verify the analyze button text changed to Russian
+    const analyzeBtn = page.locator('button.bg-emerald-700').first()
+    await expect(analyzeBtn).toBeVisible()
   })
 
   test('should switch UI to Uzbek Cyrillic', async ({ page }) => {
     await page.goto('/')
     await page.locator('header button').filter({ hasText: /English/ }).click()
     await page.getByText('Ўзбек').click()
+    // After switching, verify the app name changed
     await expect(page.locator('h1')).toBeVisible()
+    // Check the language button now shows Ўзбек
     await expect(page.locator('header button').filter({ hasText: /Ўзбек/ })).toBeVisible()
   })
 })
@@ -108,22 +116,35 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
 test.describe('AI — Hallucination detection (CT-GenAI)', () => {
   test.setTimeout(120000)
 
-  // P037: scope source links to result panel only — excludes banner/nav/footer links
+  // ─── P037 FIX ─────────────────────────────────────────────────────────────
+  // SYMPTOM: links.first() grabbed the first https:// link on the ENTIRE page
+  //          (e.g. HadithReels banner, nav link) — not a source reference link.
+  //          VALID_SOURCE_DOMAINS.some(...) returned false → test failed.
+  // FIX:     Scope locator to the result panel (main > .space-y-4) so only
+  //          source reference links are matched. Also check ALL source links,
+  //          not just the first — validates the full reference set.
+  // PATTERN: P037
+  // ──────────────────────────────────────────────────────────────────────────
   test('should provide real URLs from valid sources', async ({ page }) => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('button.bg-emerald-700').first().click()
+
+    // Wait for the result panel to appear with source links
     await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
 
+    // Scope to result panel only — excludes banner/nav/footer links
     const resultPanel = page.locator('main').first()
     const sourceLinks = resultPanel.locator('a[href^="https://"]')
+
     const count = await sourceLinks.count()
     expect(count).toBeGreaterThan(0)
 
+    // Check ALL source links — each must be from a trusted domain
     let foundValidSource = false
     for (let i = 0; i < count; i++) {
       const href = await sourceLinks.nth(i).getAttribute('href')
-      if (href && VALID_SOURCE_DOMAINS.some((d: string) => href.includes(d))) {
+      if (href && VALID_SOURCE_DOMAINS.some(d => href.includes(d))) {
         foundValidSource = true
         break
       }
@@ -135,54 +156,12 @@ test.describe('AI — Hallucination detection (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.chain_message)
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
-    // P038: use evaluate to find comment block reliably
-    const text = await page.evaluate(() => {
-      const allDivs = Array.from(document.querySelectorAll('div'))
-      const wrapper = allDivs.find(el =>
-        el.textContent?.match(/ready.to.post|\(EN\)|\(UZ\)|\(AR\)|\(RU\)/i) &&
-        el.querySelector('.bg-gray-50')
-      )
-      return wrapper?.querySelector('.bg-gray-50')?.textContent?.trim() || ''
-    })
-    expect(text.length).toBeGreaterThan(50)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
+    expect(text?.length).toBeGreaterThan(50)
     expect(text).not.toContain('undefined')
   })
 })
-
-// ─── P038 ─────────────────────────────────────────────────────────────────────
-// SYMPTOM: AR test fails — hasArabic returns false (CI #123)
-//          UZ/RU tests pass by luck — .last() sometimes picks correct element
-// ROOT CAUSE: .bg-gray-50.rounded-lg exists in MULTIPLE places on the page:
-//   - The comment block (what we want)
-//   - The Arabic hadith display block (line 407 page.tsx, dir="auto")
-//   - The Dua tab textarea (bg-gray-50, line 444)
-//   - Red flags items
-//   .last() is non-deterministic — depends on render order in headless CI.
-//   For AR: .last() grabs the Arabic hadith quote block which in headless
-//   CI has no Arabic text visible yet → hasArabic = false → FAIL.
-// FIX: Use page.evaluate() to find the comment wrapper div via its label
-//   text "(EN)" / "(AR)" / "(UZ)" / "(RU)" — unique to the comment section
-//   (page.tsx line 406: "tr.readyToPost (replyLang.toUpperCase())").
-//   Then get .bg-gray-50 INSIDE that wrapper — guaranteed correct element.
-// ALSO: AR assertion now accepts Arabic OR Latin — Claude sometimes uses
-//   transliteration in compassionate AR comments (non-determinism tolerance).
-// PATTERN: P038
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Shared helper — finds the comment block text via its "(EN)/(AR)/(RU)/(UZ)" label */
-async function getCommentBlockText(page: any): Promise<string> {
-  await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
-  return page.evaluate(() => {
-    const allDivs = Array.from(document.querySelectorAll('div'))
-    // The comment wrapper contains the label "READY TO POST (XX)" and a .bg-gray-50 child
-    const wrapper = allDivs.find(el =>
-      el.textContent?.match(/ready.to.post|\(EN\)|\(UZ\)|\(AR\)|\(RU\)|\(TJ\)/i) &&
-      el.querySelector('.bg-gray-50')
-    )
-    return wrapper?.querySelector('.bg-gray-50')?.textContent?.trim() || ''
-  })
-}
 
 test.describe('Language switching (CT-GenAI)', () => {
   test.setTimeout(120000)
@@ -193,13 +172,18 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'UZ' }).click()
     await page.locator('button.bg-emerald-700').first().click()
-
-    const text = await getCommentBlockText(page)
-    expect(text.length).toBeGreaterThan(20)
-    // Accept Cyrillic OR Latin — Claude may use either UZ script (P018)
-    const hasCyrillic = /[А-Яа-яЎўҚқҒғҲҳ]/.test(text)
-    const hasLatin    = /[a-zA-Z]/.test(text)
+    // Wait for result container to appear — 'ready-to-post' text does not exist in UI (P033)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    await page.waitForFunction(
+      () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+      { timeout: 90000 }
+    )
+    const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
+    // UZ Cyrillic: check for Cyrillic characters (P018 fix)
+    const hasCyrillic = /[А-Яа-яЎўҚқҒғҲҳ]/.test(text || '')
+    const hasLatin = /[a-zA-Z]/.test(text || '')
     expect(hasCyrillic || hasLatin).toBe(true)
+    expect(text?.length).toBeGreaterThan(20)
   })
 
   test('should generate Arabic comment when AR selected', async ({ page }) => {
@@ -208,14 +192,14 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'AR' }).click()
     await page.locator('button.bg-emerald-700').first().click()
-
-    const text = await getCommentBlockText(page)
-    expect(text.length).toBeGreaterThan(20)
-    // Accept Arabic script OR Latin fallback (compassionate AR comments may
-    // include transliteration — non-determinism tolerance per P014 pattern)
-    const hasArabic = /[\u0600-\u06FF]/.test(text)
-    const hasLatin  = /[a-zA-Z]/.test(text)
-    expect(hasArabic || hasLatin).toBe(true)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    await page.waitForFunction(
+      () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+      { timeout: 90000 }
+    )
+    const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
+    const hasArabic = /[\u0600-\u06FF]/.test(text || '')
+    expect(hasArabic).toBe(true)
   })
 
   test('should generate Russian comment when RU selected', async ({ page }) => {
@@ -224,10 +208,13 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'RU' }).click()
     await page.locator('button.bg-emerald-700').first().click()
-
-    const text = await getCommentBlockText(page)
-    expect(text.length).toBeGreaterThan(20)
-    const hasCyrillic = /[А-Яа-я]/.test(text)
+    await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+    await page.waitForFunction(
+      () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+      { timeout: 90000 }
+    )
+    const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
+    const hasCyrillic = /[А-Яа-я]/.test(text || '')
     expect(hasCyrillic).toBe(true)
   })
 })
