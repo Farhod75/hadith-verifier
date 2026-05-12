@@ -120,7 +120,7 @@ export default function Home() {
       if (searchQuery.trim()) params.set('q', searchQuery.trim())
       if (searchTag)          params.set('tag', searchTag)
       if (searchGrade)        params.set('grade', searchGrade)
-      params.set('lang', replyLang)
+      params.set('lang', appLang)    // ✅ appLang = actual UI language user selected
       const res  = await fetch(`/api/search?${params}`)
       const data = await res.json()
       setSearchResults(Array.isArray(data) ? data : [])
