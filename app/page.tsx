@@ -103,6 +103,16 @@ export default function Home() {
 
   useEffect(() => { if (tab === 'admin') fetchQueue() }, [tab])
 
+  // Auto-sync replyLang when user switches app language
+  // Maps appLang (6 codes) → replyLang (4 codes: en/uz/ar/ru)
+  useEffect(() => {
+    if (appLang === 'uz_latin' || appLang === 'uz_cyrillic') setReplyLang('uz')
+    else if (appLang === 'ru') setReplyLang('ru')
+    else if (appLang === 'ar') setReplyLang('ar')
+    else if (appLang === 'tj') setReplyLang('ru') // Tajik → Russian TTS fallback
+    else setReplyLang('en')
+  }, [appLang])
+
   const currentLang = APP_LANGUAGES.find(l => l.code === appLang)!
 
   async function fetchQueue() {
