@@ -12,6 +12,7 @@ type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
 interface Reference { source: string; description: string; url: string; authority: string }
 interface AnalysisResult {
   extracted_text?: string; verdict: Verdict; confidence: string; claim_summary: string
+  seerah_context?: string
   red_flags: string[]; analysis: string; authentic_alternative: string
   references: Reference[]; suggested_comment: string
 }
@@ -407,6 +408,23 @@ export default function Home() {
                         })}
                       </>
                     )}
+                  </div>
+                )}
+                {result.seerah_context && (
+                  <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">📖</span>
+                      <div className="text-xs font-medium text-amber-800 uppercase tracking-wide">
+                        Story behind this hadith
+                      </div>
+                      <span className="text-xs text-amber-600 ml-auto">Ar-Raheeq Al-Makhtum</span>
+                    </div>
+                    <div className="text-sm text-amber-900 leading-relaxed" dir="auto">
+                      {result.seerah_context}
+                    </div>
+                    <div className="mt-3">
+                      <TTSPlayer text={result.seerah_context} lang={replyLang} label="Listen to story" />
+                    </div>
                   </div>
                 )}
                 {result.suggested_comment && (
