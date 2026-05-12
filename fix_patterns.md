@@ -135,3 +135,111 @@ params.set('lang', appLang)     // actual UI language user selected in header
   appLang   → language of the APP UI + Search tab translation display
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 41: analyze route rewrite dropped FormData handler
+## ════════════════════════════════════════════════════════
+**ID:** P041
+**Type:** Bug fix (route regression)
+**File:** app/api/analyze/route.ts
+**Commit:** fix: restore FormData image upload in analyze route (P041)
+
+**Symptom:**
+  - Image upload triggers alert "Post text or image required"
+  - Both localhost and production affected immediately after route replacement
+  - Text-only analysis still works
+
+**Root cause:**
+  Route rewrite for seerah_context was JSON-only. Dropped the
+  multipart/form-data handler. Frontend sends FormData when image is
+  selected (page.tsx line 152: fd.append('image', image)).
+  New route called req.json() on FormData → imageBase64 empty → 400 error.
+
+**Fix:**
+  Always handle BOTH content types in routes that accept images:
+  if (contentType.includes('multipart/form-data')) { await req.formData() }
+  else { await req.json() }
+
+**Rule going forward:**
+  Never replace an API route without checking ALL content-type paths.
+  Search for 'multipart' and 'formData' in the original before replacing.
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 42: replyLang not synced to appLang on switch
+## ════════════════════════════════════════════════════════
+**ID:** P042
+**Type:** UX bug fix (state sync)
+**File:** app/page.tsx — useEffect
+**Commit:** fix: auto-sync replyLang when appLang changes (P042)
+
+**Symptom:**
+  - User switches app to Ўзбек (uz_cyrillic)
+  - All UI labels show in Cyrillic ✅
+  - But analysis result comment shows in English ❌
+  - Story card (seerah_context) also in English ❌
+
+**Root cause:**
+  replyLang state defaults to 'en' and only changes when user explicitly
+  clicks EN/UZ/AR/RU reply buttons in the Analyze tab.
+  The analyze route uses replyLang (not appLang) as the lang param.
+  User expects switching the app language to also switch the reply language.
+
+**Fix:**
+  Add useEffect that maps appLang → replyLang whenever appLang changes:
+  useEffect(() => {
+    if (appLang === 'uz_latin' || appLang === 'uz_cyrillic') setReplyLang('uz')
+    else if (appLang === 'ru') setReplyLang('ru')
+    else if (appLang === 'ar') setReplyLang('ar')
+    else if (appLang === 'tj') setReplyLang('ru') // Tajik TTS fallback
+    else setReplyLang('en')
+  }, [appLang])
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 43: Language/analysis tests timeout in CI — mock API
+## ════════════════════════════════════════════════════════
+**ID:** P043
+**Type:** Test architecture fix (CI reliability)
+**File:** tests/hadith-verifier.spec.ts
+**Commit:** fix: mock API in language tests — eliminate Claude latency in CI (P043)
+
+**Symptom:**
+  - Language switching tests and analysis flow tests fail in CI with
+    TimeoutError: waitForSelector timeout 110000ms exceeded
+  - Tests pass locally (faster machine, warmer connection)
+  - CI #125–#132 all failing on same tests despite increasing timeout
+
+**Root cause:**
+  Tests called real Claude API in CI. After adding seerah_context field,
+  Claude prompt is larger → responses take 20-35s in CI (shared runners
+  are slower than local). 110s timeout not sufficient when:
+    - GitHub Actions runner cold start
+    - Claude API under load
+    - seerah_context adds ~10s to response time
+  Wrong test design: language tests validate UI rendering, not Claude output.
+  Real API validation belongs in pytest suite.
+
+**Fix — page.route() mock pattern:**
+  async function mockAnalyze(page, lang) {
+    await page.route('**/api/analyze', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_RESPONSE(lang))
+      })
+    )
+  }
+  - Mock returns deterministic response with correct language text
+  - Tests run in ~2s instead of 110s
+  - Tests are deterministic — no Claude non-determinism
+  - Real API tests tagged @real-api, skipped in CI workflow
+  - Run real API tests manually: npx playwright test --grep @real-api
+
+**Separation of concerns:**
+  hadith-verifier.spec.ts  → UI rendering, language display (mocked)
+  test_analyze_api.py      → Real Claude output quality (pytest, prod)
+  @real-api tagged tests   → Manual validation against production
+
+**Status:** FIXED
