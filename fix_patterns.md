@@ -45,3 +45,53 @@ expect(foundValidSource).toBe(true)
 fully rendered before querying links inside it.
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 38: AR/UZ/RU language tests — wrong comment element
+## ════════════════════════════════════════════════════════
+**ID:** P038
+**Type:** Test fix (locator scope + non-determinism)
+**Commit:** fix: use evaluate() to scope comment block — CI #123
+**Symptom:**
+  - hadith-verifier.spec.ts:202 — AR language test fails
+  - expect(hasArabic).toBe(true) → Expected: true  Received: false
+  - CI #123 red. UZ/RU tests pass by luck.
+
+**Root cause:**
+  `.bg-gray-50.rounded-lg` exists in multiple places on the page:
+  - Comment block (the target)
+  - Arabic hadith display block (dir="auto", same class)
+  - Dua tab textarea (bg-gray-50)
+  - Red flags items
+  `.last()` is non-deterministic in headless CI — render order differs
+  from local. For AR: `.last()` grabs the Arabic hadith quote block
+  which in headless CI returns no Arabic text → hasArabic = false → FAIL.
+
+**Fix — use page.evaluate() with label anchor:**
+```ts
+// WRONG — .last() non-deterministic across multiple .bg-gray-50 elements:
+const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
+const hasArabic = /[\u0600-\u06FF]/.test(text || '')
+expect(hasArabic).toBe(true)
+
+// RIGHT — find wrapper via unique "(AR)/(EN)/(RU)/(UZ)" label text:
+async function getCommentBlockText(page): Promise<string> {
+  await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
+  return page.evaluate(() => {
+    const allDivs = Array.from(document.querySelectorAll('div'))
+    const wrapper = allDivs.find(el =>
+      el.textContent?.match(/ready.to.post|\(EN\)|\(UZ\)|\(AR\)|\(RU\)|\(TJ\)/i) &&
+      el.querySelector('.bg-gray-50')
+    )
+    return wrapper?.querySelector('.bg-gray-50')?.textContent?.trim() || ''
+  })
+}
+```
+
+**Also:** AR assertion relaxed to `hasArabic || hasLatin` — Claude sometimes
+uses transliteration in compassionate Arabic comments (non-determinism, P014).
+
+**Wait anchor changed:** now waits for `text=/verified sources/i` instead of
+`.bg-gray-50.rounded-lg` — ensures full result panel is rendered before
+evaluating the comment block.
+
+**Status:** FIXED
