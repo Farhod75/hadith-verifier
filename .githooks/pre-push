@@ -1,155 +1,101 @@
 #!/bin/sh
-# .git/hooks/pre-push
-# Smart pre-push hook — scans what files are being pushed
-# and runs only the relevant tests for those changes.
+# .git/hooks/pre-push  v2 — hadith-verifier
+# Smart: scans changed files, runs only relevant tests
+# Excludes @real-api tagged tests (non-deterministic Claude calls)
 #
-# Logic:
-#   doc-only push  → skip all tests (instant)
-#   code push      → run targeted tests based on which files changed
-#   test-only push → validate tests compile only (tsc)
+# Doc-only push  → skip all tests instantly
+# Code push      → targeted tests based on changed files
+# @real-api tests → always skipped (run manually: --grep @real-api)
 #
-# Bypass (emergency): git push --no-verify
-# Install: copy to .git/hooks/pre-push
+# Bypass: git push --no-verify
 
 echo ""
-echo "🔍 Smart pre-push scanner running..."
+echo "🔍 Smart pre-push scanner v2..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# ── Get list of files being pushed ───────────────────────────────────────────
-# Compare current branch HEAD to the remote tracking branch
-REMOTE="$1"
-URL="$2"
-
-# Get changed files vs remote main (or all staged if first push)
+# Get changed files vs remote
 REMOTE_REF=$(git rev-parse --verify origin/main 2>/dev/null)
 if [ -z "$REMOTE_REF" ]; then
-  # First push — compare to empty tree
   CHANGED_FILES=$(git diff --name-only $(git hash-object -t tree /dev/null) HEAD)
 else
   CHANGED_FILES=$(git diff --name-only origin/main HEAD)
 fi
 
 if [ -z "$CHANGED_FILES" ]; then
-  echo "✅ No changed files detected — nothing to check"
+  echo "✅ No changes — nothing to check"
   exit 0
 fi
 
-echo "📋 Files changed:"
-echo "$CHANGED_FILES" | sed 's/^/   /'
-echo ""
+echo "📋 Changed: $(echo "$CHANGED_FILES" | wc -l | tr -d ' ') files"
 
-# ── Classify changed files ────────────────────────────────────────────────────
-# Doc files — never need tests
-DOC_PATTERNS="\.md$|\.txt$|\.json$|fix_patterns|CLAUDE|AGENTS|QA_STANDARDS|CI_WORKFLOW|README|CHANGELOG|\.githooks"
-
-# Test files — only need tsc check
-TEST_PATTERNS="^tests/|\.spec\.ts$|\.spec\.tsx$|conftest\.py$|test_.*\.py$"
-
-# Route/API files — need API tests
+# ── File classification ───────────────────────────────────────────────────────
+DOC_PATTERNS="\.md$|fix_patterns|CLAUDE|AGENTS|QA_STANDARDS|CI_WORKFLOW|README|CHANGELOG|\.githooks|\.gitignore"
 API_PATTERNS="^app/api/|route\.ts$"
-
-# UI component files — need E2E tests
-UI_PATTERNS="^app/page\.tsx$|^components/|^lib/|^app/layout"
-
-# Config files — need build check
+UI_PATTERNS="^app/page\.tsx$|^components/|^lib/"
 CONFIG_PATTERNS="next\.config|playwright\.config|tsconfig|package\.json$"
 
-# Check what categories are present
-HAS_DOC=$(echo "$CHANGED_FILES" | grep -E "$DOC_PATTERNS" | wc -l | tr -d ' ')
-HAS_TEST=$(echo "$CHANGED_FILES" | grep -E "$TEST_PATTERNS" | wc -l | tr -d ' ')
+NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
 HAS_API=$(echo "$CHANGED_FILES" | grep -E "$API_PATTERNS" | wc -l | tr -d ' ')
 HAS_UI=$(echo "$CHANGED_FILES" | grep -E "$UI_PATTERNS" | wc -l | tr -d ' ')
 HAS_CONFIG=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | wc -l | tr -d ' ')
 
-# Files that are NOT docs
-NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
-
-echo "📊 Change classification:"
-echo "   📝 Doc files:    $HAS_DOC"
-echo "   🧪 Test files:   $HAS_TEST"
-echo "   🔌 API routes:   $HAS_API"
-echo "   🖥  UI files:     $HAS_UI"
-echo "   ⚙️  Config files: $HAS_CONFIG"
-echo "   📦 Non-doc total: $NON_DOC"
-echo ""
-
-# ── CASE 1: Doc-only push — skip all tests ────────────────────────────────────
+# ── Case 1: Doc-only — skip everything ───────────────────────────────────────
 if [ "$NON_DOC" -eq 0 ]; then
-  echo "✅ Doc-only push detected — skipping tests"
-  echo "   (CLAUDE.md, fix_patterns.md, README, AGENTS.md etc.)"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "✅ Doc-only push — skipping all tests"
+  echo "   Files: $(echo "$CHANGED_FILES" | tr '\n' ' ')"
   exit 0
 fi
 
-# ── CASE 2: Code changes — run targeted tests ─────────────────────────────────
-echo "🔧 Code changes detected — running targeted checks..."
+echo "🔧 Code changes detected (API=$HAS_API UI=$HAS_UI Config=$HAS_CONFIG)"
 echo ""
 
 FAILED=0
 
-# Always run TypeScript check for any non-doc change
-echo "▶ TypeScript check (always)..."
+# ── Always: TypeScript check ─────────────────────────────────────────────────
+echo "▶ TypeScript check..."
 npx tsc --noEmit 2>&1
 if [ $? -ne 0 ]; then
-  echo "❌ TypeScript errors — fix before pushing"
+  echo "❌ TypeScript errors"
   FAILED=1
 fi
 [ $FAILED -eq 0 ] && echo "✅ TypeScript OK"
 
-# Config changes → also run build
+# ── Config change: build check ────────────────────────────────────────────────
 if [ "$HAS_CONFIG" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo ""
   echo "▶ Build check (config changed)..."
   npm run build 2>&1
-  if [ $? -ne 0 ]; then
-    echo "❌ Build failed — fix before pushing"
-    FAILED=1
-  fi
+  if [ $? -ne 0 ]; then echo "❌ Build failed"; FAILED=1; fi
   [ $FAILED -eq 0 ] && echo "✅ Build OK"
 fi
 
-# API route changes → run API tests
+# ── API route change: run api.spec.ts excluding @real-api ────────────────────
 if [ "$HAS_API" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo ""
-  echo "▶ API tests (route files changed)..."
+  echo "▶ API tests (excluding @real-api — non-deterministic Claude calls)..."
+  # --grep-invert skips @real-api tagged tests
   npx playwright test tests/api.spec.ts \
-    --project=chromium --reporter=list --workers=2 2>&1
-  if [ $? -ne 0 ]; then
-    echo "❌ API tests failed — fix before pushing"
-    FAILED=1
-  fi
+    --project=chromium --reporter=list --workers=2 \
+    --grep-invert "@real-api" 2>&1
+  if [ $? -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
   [ $FAILED -eq 0 ] && echo "✅ API tests OK"
 fi
 
-# UI/component changes → run E2E tests
+# ── UI change: run E2E tests ──────────────────────────────────────────────────
 if [ "$HAS_UI" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo ""
-  echo "▶ E2E tests (UI files changed)..."
+  echo "▶ E2E tests (UI changed)..."
   npx playwright test tests/hadith-verifier.spec.ts \
     --project=chromium --reporter=list --workers=2 2>&1
-  if [ $? -ne 0 ]; then
-    echo "❌ E2E tests failed — fix before pushing"
-    FAILED=1
-  fi
+  if [ $? -ne 0 ]; then echo "❌ E2E tests failed"; FAILED=1; fi
   [ $FAILED -eq 0 ] && echo "✅ E2E tests OK"
 fi
 
-# Test file changes only → just verify compilation (no need to run all tests again)
-if [ "$HAS_TEST" -gt 0 ] && [ "$HAS_API" -eq 0 ] && [ "$HAS_UI" -eq 0 ] && [ $FAILED -eq 0 ]; then
-  echo ""
-  echo "✅ Test-only changes — TypeScript check sufficient"
-  echo "   (Full test run not needed for spec-file-only changes)"
-fi
-
-# ── Result ─────────────────────────────────────────────────────────────────────
+# ── Result ────────────────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ $FAILED -ne 0 ]; then
-  echo "❌ Pre-push checks FAILED — push blocked"
-  echo "   Fix the issues above and try again"
+  echo "❌ Push blocked — fix issues above"
   echo "   Emergency bypass: git push --no-verify"
   exit 1
 else
-  echo "✅ All targeted checks passed — pushing..."
+  echo "✅ All checks passed — pushing!"
   exit 0
 fi
