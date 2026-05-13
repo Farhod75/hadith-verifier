@@ -5,7 +5,7 @@ import { t, getDir, APP_LANGUAGES, type AppLang } from '@/lib/i18n'
 import SpeechInput from '@/components/SpeechInput'
 import TTSPlayer from '@/components/TTSPlayer'
 
-type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' \'tj'
+type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' | 'tj'
 type Tab = 'analyze' | 'dua' | 'sources' | 'admin' | 'search'
 type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
 
@@ -109,7 +109,7 @@ export default function Home() {
     if (appLang === 'uz_latin' || appLang === 'uz_cyrillic') setReplyLang('uz')
     else if (appLang === 'ru') setReplyLang('ru')
     else if (appLang === 'ar') setReplyLang('ar')
-    else if (appLang === 'tj') setReplyLang('ru') // Tajik → Russian TTS fallback
+    else if (appLang === 'tj') setReplyLang('tj') // Tajik → Russian TTS fallback
     else setReplyLang('en')
   }, [appLang])
 
@@ -356,7 +356,7 @@ export default function Home() {
                   className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.clear}</button>
                 <div className="ml-auto flex gap-1 items-center">
                   <span className="text-xs text-gray-400 mr-1">{tr.replyIn}</span>
-                  {(['en', 'uz', 'ar', 'ru'] as ReplyLang[]).map(l => (
+                  {(['en', 'uz', 'ar', 'ru', 'tj'] as ReplyLang[]).map(l => (
                     <button key={l} onClick={() => setReplyLang(l)}
                       className={`text-xs px-3 py-1 rounded-full border ${replyLang === l ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'border-gray-200 text-gray-500'}`}>
                       {l.toUpperCase()}
