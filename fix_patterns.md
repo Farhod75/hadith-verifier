@@ -563,3 +563,49 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   via multilingual model. Browser fallback sounds Russian — acceptable.
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 59: TTS reads URLs, bullets, special chars literally
+## ════════════════════════════════════════════════════════
+**ID:** P059
+**Type:** UX bug fix (TTS text preprocessing)
+**File:** components/TTSPlayer.tsx
+**Commit:** fix: sanitize text before TTS — remove URLs bullets special chars (P059)
+
+**Symptoms:**
+  1. "Listen to analysis" says: "slash slash sunnah dot com bukhari colon 8"
+     Root cause: URL https://sunnah.com/bukhari:8 passed raw to TTS
+  2. UZ "Listen to comment" says: "dot dot dot" for highlighted blocks
+     Root cause: ◆ bullet characters passed raw to TTS
+  3. TJ/UZ numbers read in Russian accent
+     Root cause: ElevenLabs multilingual defaults to Russian for digits
+     in Cyrillic context — acceptable behavior, not fixable without
+     custom pronunciation dictionary
+
+**Fix — sanitizeForTTS() function:**
+  Applied BEFORE sending text to ElevenLabs AND browser SpeechSynthesis:
+  1. Remove URLs: https://... → ''
+  2. Remove bullet chars: ◆ ♦ • · → ''
+  3. Remove hadith refs: #1234, bukhari:8 → ''
+  4. Remove markdown: **bold** → bold
+  5. Remove tier labels: [tier1] → ''
+  6. Normalize whitespace
+
+**Code:**
+  function sanitizeForTTS(text: string): string {
+    return text
+      .replace(/https?:\/\/[^\s,)،]+/g, '')   // URLs
+      .replace(/[◆♦•·‣▪▸►]/g, '')              // bullets
+      .replace(/#\d+/g, '')                     // #1234 refs
+      .replace(/\w+:\d+/g, '')                  // bukhari:8 refs
+      .replace(/\*\*([^*]+)\*\*/g, '$1')        // **bold**
+      .replace(/\[tier\d\]/gi, '')               // [tier1]
+      .trim()
+  }
+
+**Numbers in TJ/UZ:**
+  ElevenLabs multilingual v2 reads digits in the dominant language
+  of surrounding text. In Cyrillic context → Russian phonetics.
+  This is expected ElevenLabs behavior. To fix properly requires
+  spelling out numbers in words before TTS (Phase 4 enhancement).
+
+**Status:** FIXED
