@@ -5,7 +5,7 @@ import { t, getDir, APP_LANGUAGES, type AppLang } from '@/lib/i18n'
 import SpeechInput from '@/components/SpeechInput'
 import TTSPlayer from '@/components/TTSPlayer'
 
-type ReplyLang = 'en' | 'uz' | 'ar' | 'ru'
+type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' \'tj'
 type Tab = 'analyze' | 'dua' | 'sources' | 'admin' | 'search'
 type Verdict = 'fabricated' | 'weak' | 'authentic' | 'unclear' | 'no_hadith'
 

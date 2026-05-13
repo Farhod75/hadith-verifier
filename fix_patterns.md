@@ -520,3 +520,46 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   Never mix dots and underscores in spec file names
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 58: TJ missing from ReplyLang + UZ reads as Latin
+## ════════════════════════════════════════════════════════
+**ID:** P058
+**Type:** Bug fix (language support + BCP-47 codes)
+**Files:** page.tsx, components/TTSPlayer.tsx
+**Commit:** fix: add TJ to ReplyLang, fix UZ BCP-47 code for browser TTS (P058)
+
+**Symptom 1 — TJ missing:**
+  Tajik language button not visible in reply language selector.
+  type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' — TJ not included.
+
+**Symptom 2 — UZ Cyrillic reads as Latin:**
+  User selects UZ reply language → TTSPlayer → browser SpeechSynthesis
+  reads Cyrillic text in English phonetics (Latin-like sound).
+  Root cause: SpeechSynthesisUtterance.lang = 'uz' — not a valid BCP-47 code.
+  Browser falls back to default voice (English) → reads Cyrillic as English.
+
+**Fix 1 — Add TJ to ReplyLang:**
+  type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' | 'tj'
+  Add 'tj' to reply buttons array.
+  Update useEffect sync: appLang === 'tj' → setReplyLang('tj') (was 'ru')
+
+**Fix 2 — BCP-47 language codes in TTSPlayer:**
+  // WRONG — 'uz' not recognized by browser:
+  utt.lang = lang  // 'uz' → browser defaults to English
+
+  // RIGHT — full BCP-47 codes:
+  const BROWSER_LANG_CODE = {
+    en: 'en-US',
+    uz: 'uz-UZ',   // ← was missing, caused Latin reading of Cyrillic
+    ar: 'ar-SA',
+    ru: 'ru-RU',
+    tj: 'ru-RU',   // TJ fallback (no native TJ TTS voice)
+  }
+  utt.lang = BROWSER_LANG_CODE[lang] || 'en-US'
+
+**Note on UZ Cyrillic TTS:**
+  Even with 'uz-UZ', browser support is limited. Most browsers don't have
+  a native Uzbek voice. ElevenLabs (primary path) handles UZ correctly
+  via multilingual model. Browser fallback sounds Russian — acceptable.
+
+**Status:** FIXED
