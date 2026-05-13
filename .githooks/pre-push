@@ -1,19 +1,21 @@
 #!/bin/sh
-# .git/hooks/pre-push  v2 — hadith-verifier
-# Smart: scans changed files, runs only relevant tests
-# Excludes @real-api tagged tests (non-deterministic Claude calls)
+# .git/hooks/pre-push  v3 — hadith-verifier
+# Smart scanner: runs only tests relevant to changed files
+# Doc-only → instant skip. @real-api → always excluded.
 #
-# Doc-only push  → skip all tests instantly
-# Code push      → targeted tests based on changed files
-# @real-api tests → always skipped (run manually: --grep @real-api)
+# Test mapping:
+#   app/api/tts/     → tts.spec.ts
+#   app/api/analyze/ → api.spec.ts
+#   app/page.tsx     → hadith-verifier.spec.ts
+#   components/      → hadith-verifier.spec.ts
+#   *.md / docs      → skip all (instant)
 #
 # Bypass: git push --no-verify
 
 echo ""
-echo "🔍 Smart pre-push scanner v2..."
+echo "🔍 Smart pre-push scanner v3..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# Get changed files vs remote
 REMOTE_REF=$(git rev-parse --verify origin/main 2>/dev/null)
 if [ -z "$REMOTE_REF" ]; then
   CHANGED_FILES=$(git diff --name-only $(git hash-object -t tree /dev/null) HEAD)
@@ -29,38 +31,36 @@ fi
 echo "📋 Changed: $(echo "$CHANGED_FILES" | wc -l | tr -d ' ') files"
 
 # ── File classification ───────────────────────────────────────────────────────
-DOC_PATTERNS="\.md$|fix_patterns|CLAUDE|AGENTS|QA_STANDARDS|CI_WORKFLOW|README|CHANGELOG|\.githooks|\.gitignore"
-API_PATTERNS="^app/api/|route\.ts$"
+DOC_PATTERNS="\.md$|fix_patterns|CLAUDE|AGENTS|QA_STANDARDS|CI_WORKFLOW|README|CHANGELOG|\.githooks|\.gitignore|\.txt$"
+TTS_PATTERNS="^app/api/tts/|tts\.spec\.|TTSPlayer"
+ANALYZE_PATTERNS="^app/api/analyze/|api\.spec\."
 UI_PATTERNS="^app/page\.tsx$|^components/|^lib/"
 CONFIG_PATTERNS="next\.config|playwright\.config|tsconfig|package\.json$"
 
 NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
-HAS_API=$(echo "$CHANGED_FILES" | grep -E "$API_PATTERNS" | wc -l | tr -d ' ')
+HAS_TTS=$(echo "$CHANGED_FILES" | grep -E "$TTS_PATTERNS" | wc -l | tr -d ' ')
+HAS_ANALYZE=$(echo "$CHANGED_FILES" | grep -E "$ANALYZE_PATTERNS" | wc -l | tr -d ' ')
 HAS_UI=$(echo "$CHANGED_FILES" | grep -E "$UI_PATTERNS" | wc -l | tr -d ' ')
 HAS_CONFIG=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | wc -l | tr -d ' ')
 
-# ── Case 1: Doc-only — skip everything ───────────────────────────────────────
+# ── Doc-only: skip instantly ──────────────────────────────────────────────────
 if [ "$NON_DOC" -eq 0 ]; then
   echo "✅ Doc-only push — skipping all tests"
-  echo "   Files: $(echo "$CHANGED_FILES" | tr '\n' ' ')"
   exit 0
 fi
 
-echo "🔧 Code changes detected (API=$HAS_API UI=$HAS_UI Config=$HAS_CONFIG)"
+echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG"
 echo ""
 
 FAILED=0
 
-# ── Always: TypeScript check ─────────────────────────────────────────────────
+# ── Always: TypeScript ────────────────────────────────────────────────────────
 echo "▶ TypeScript check..."
 npx tsc --noEmit 2>&1
-if [ $? -ne 0 ]; then
-  echo "❌ TypeScript errors"
-  FAILED=1
-fi
+if [ $? -ne 0 ]; then echo "❌ TypeScript errors"; FAILED=1; fi
 [ $FAILED -eq 0 ] && echo "✅ TypeScript OK"
 
-# ── Config change: build check ────────────────────────────────────────────────
+# ── Config: build ─────────────────────────────────────────────────────────────
 if [ "$HAS_CONFIG" -gt 0 ] && [ $FAILED -eq 0 ]; then
   echo "▶ Build check (config changed)..."
   npm run build 2>&1
@@ -68,10 +68,19 @@ if [ "$HAS_CONFIG" -gt 0 ] && [ $FAILED -eq 0 ]; then
   [ $FAILED -eq 0 ] && echo "✅ Build OK"
 fi
 
-# ── API route change: run api.spec.ts excluding @real-api ────────────────────
-if [ "$HAS_API" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo "▶ API tests (excluding @real-api — non-deterministic Claude calls)..."
-  # --grep-invert skips @real-api tagged tests
+# ── TTS route/component changed → run tts.spec.ts ────────────────────────────
+if [ "$HAS_TTS" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  echo "▶ TTS contract tests (tts.spec.ts)..."
+  npx playwright test tests/tts.spec.ts \
+    --project=chromium --reporter=list --workers=2 \
+    --grep-invert "@real-api" 2>&1
+  if [ $? -ne 0 ]; then echo "❌ TTS tests failed"; FAILED=1; fi
+  [ $FAILED -eq 0 ] && echo "✅ TTS tests OK"
+fi
+
+# ── Analyze route changed → run api.spec.ts ───────────────────────────────────
+if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  echo "▶ API tests (api.spec.ts, excluding @real-api)..."
   npx playwright test tests/api.spec.ts \
     --project=chromium --reporter=list --workers=2 \
     --grep-invert "@real-api" 2>&1
@@ -79,9 +88,9 @@ if [ "$HAS_API" -gt 0 ] && [ $FAILED -eq 0 ]; then
   [ $FAILED -eq 0 ] && echo "✅ API tests OK"
 fi
 
-# ── UI change: run E2E tests ──────────────────────────────────────────────────
+# ── UI changed → run E2E ──────────────────────────────────────────────────────
 if [ "$HAS_UI" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo "▶ E2E tests (UI changed)..."
+  echo "▶ E2E tests (hadith-verifier.spec.ts)..."
   npx playwright test tests/hadith-verifier.spec.ts \
     --project=chromium --reporter=list --workers=2 2>&1
   if [ $? -ne 0 ]; then echo "❌ E2E tests failed"; FAILED=1; fi
@@ -93,7 +102,6 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [ $FAILED -ne 0 ]; then
   echo "❌ Push blocked — fix issues above"
-  echo "   Emergency bypass: git push --no-verify"
   exit 1
 else
   echo "✅ All checks passed — pushing!"

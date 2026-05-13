@@ -927,3 +927,46 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   ELEVENLABS_VOICE_EN=<EN voice ID>
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 61: TTS route required voiceId — TTSPlayer sends lang only
+## ════════════════════════════════════════════════════════
+**ID:** P061
+**Type:** Bug fix (API contract mismatch)
+**File:** app/api/tts/route.ts
+**Commit:** fix: TTS route maps lang→voiceId internally, sanitizes text (P061)
+
+**Symptom:**
+  - AR language: all 3 Listen buttons silent — 400 Bad Request
+  - UZ/TJ: Listen to comment reads URLs (new TTSPlayer never deployed)
+  - PowerShell test: (400) Bad Request when sending lang without voiceId
+
+**Root cause:**
+  Old /api/tts route required { text, voiceId } in request body.
+  New TTSPlayer.tsx sends { text, lang } — no voiceId.
+  Route returned 400 "text and voiceId are required" for every request
+  that used the new TTSPlayer. Browser fell back to SpeechSynthesis for
+  RU/EN (which has voices) but AR has no browser voice → silent.
+  This also means the new sanitizeForTTS() in TTSPlayer was never
+  reaching ElevenLabs — it was always going to browser fallback.
+
+**Fix:**
+  Route now accepts { text, lang } OR { text, voiceId } (legacy).
+  Internal VOICE_MAP maps lang → voiceId:
+    ar → ELEVENLABS_VOICE_AR (Hijazi)
+    ru → ELEVENLABS_VOICE_RU (Abrar Sabbah)
+    uz → ELEVENLABS_VOICE_UZ (Abrar Sabbah)
+    tj → ELEVENLABS_VOICE_TJ (Abrar Sabbah)
+    en → ELEVENLABS_VOICE_EN (default)
+
+  Text sanitization also moved to route (server-side):
+    Strips URLs, bullets, refs before sending to ElevenLabs.
+    More reliable than client-side only.
+
+**Add to Vercel env vars (optional — defaults work):**
+  ELEVENLABS_VOICE_AR=<Hijazi voice ID>
+  ELEVENLABS_VOICE_RU=<Abrar Sabbah voice ID>
+  ELEVENLABS_VOICE_UZ=<Abrar Sabbah voice ID>
+  ELEVENLABS_VOICE_TJ=<Abrar Sabbah voice ID>
+  ELEVENLABS_VOICE_EN=<EN voice ID>
+
+**Status:** FIXED
