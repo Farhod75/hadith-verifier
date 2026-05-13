@@ -609,3 +609,278 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   spelling out numbers in words before TTS (Phase 4 enhancement).
 
 **Status:** FIXED
+# ============================================================
+# DOCUMENTATION UPDATE — May 2026
+# Covers: P040–P059, CI #122–144, pre-push hooks, TJ support
+# Paste each section into the appropriate file
+# ============================================================
+
+# ════════════════════════════════════════════════════════════
+# FILE 1: Append to fix_patterns.md
+# ════════════════════════════════════════════════════════════
+
+## ════════════════════════════════════════════════════════
+## PATTERN 40: Timeout too short after seerah_context added
+## ════════════════════════════════════════════════════════
+**ID:** P040
+**Type:** Test fix (timeout)
+**File:** tests/hadith-verifier.spec.ts
+**Commit:** fix: bump timeout to 110s for seerah_context latency
+**Symptom:** Tests timeout at 30s after seerah_context field added to prompt
+**Root cause:** seerah_context adds ~10s to Claude response time on CI runners
+**Fix:** Increase waitForSelector timeout to 110000ms for real API tests
+**Status:** FIXED (superseded by P043 — real API tests now mocked)
+
+## ════════════════════════════════════════════════════════
+## PATTERN 41: analyze route rewrite dropped FormData handler
+## ════════════════════════════════════════════════════════
+**ID:** P041
+**Type:** Bug fix (route regression)
+**File:** app/api/analyze/route.ts
+**Commit:** fix: restore FormData image upload in analyze route (P041)
+**Symptom:** Image upload returns "Post text or image required" after route rewrite
+**Root cause:** Route rewrite was JSON-only — dropped multipart/form-data handler
+**Fix:** Handle BOTH content types:
+  if (contentType.includes('multipart/form-data')) { formData } else { json }
+**Rule:** Never rewrite a route without checking ALL content-type paths it handles
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 42: replyLang not synced to appLang on switch
+## ════════════════════════════════════════════════════════
+**ID:** P042
+**Type:** UX bug (state sync)
+**File:** app/page.tsx
+**Commit:** fix: auto-sync replyLang when appLang changes (P042)
+**Symptom:** Switch app to Uzbek → UI shows Uzbek ✅ but analysis comment shows English ❌
+**Root cause:** replyLang state defaults to 'en', only changes when user explicitly
+  clicks reply language buttons. No sync when appLang changes.
+**Fix:** useEffect that maps appLang → replyLang whenever appLang changes
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 43: Language/analysis CI tests call real Claude
+## ════════════════════════════════════════════════════════
+**ID:** P043
+**Type:** Test architecture fix
+**File:** tests/hadith-verifier.spec.ts
+**Commit:** fix: mock API in CI language tests — eliminate Claude latency (P043)
+**Symptom:** Language switching tests timeout in CI (110s exceeded)
+**Root cause:** Tests called real Claude API. With seerah_context, responses
+  take 20-35s in CI. Language tests validate UI rendering not Claude output.
+**Fix:** page.route() mock for all CI push tests. Tag @real-api for manual.
+**Rule:** NEVER call real Claude/ElevenLabs in CI push tests
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 44: Severity tests call real Claude — non-deterministic
+## ════════════════════════════════════════════════════════
+**ID:** P044
+**Type:** Test architecture fix
+**File:** tests/api.spec.ts
+**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
+**Symptom:** api.spec.ts:331 — chain message returns MEDIUM not CRITICAL/HIGH
+**Root cause:** getSeverity() is deterministic but tested through non-deterministic Claude.
+  Claude returned verdict='weak' → MEDIUM → test expected CRITICAL/HIGH → FAIL
+**Fix:** Test getSeverity() as pure unit test. Move real API assertions to @real-api.
+**Rule:** Never test a deterministic function through a non-deterministic AI API
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 45: audit_spec + language-speech in CI yml
+## ════════════════════════════════════════════════════════
+**ID:** P045
+**Type:** CI architecture fix
+**File:** .github/workflows/ci.yml
+**Commit:** fix: remove audit+language-speech from CI push, add manual dispatch (P045)
+**Symptom:** 18 audit tests fail in CI — all calling real Claude
+**Root cause:** ci.yml called audit.spec.ts (14+ real Claude calls) and
+  language-speech.spec.ts (real ElevenLabs) in push-triggered steps.
+  Also: filename was audit.spec.ts (dot) but file is audit_spec.ts (underscore)
+**Fix:** Remove both steps from push CI. Add workflow_dispatch with run_audit input.
+**Rule:** CI yml must never call real external APIs in push-triggered steps
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 46: HR ci.yml had language-speech real API step
+## ════════════════════════════════════════════════════════
+**ID:** P046
+**Type:** CI fix (HR project)
+**Commit:** fix: correct HR ci.yml — remove language-speech, add mocked E2E (P046)
+**Symptom:** All HR CI runs #1-5 failed — language-speech calls real ElevenLabs
+**Fix:** Remove step, add hadith-reels.spec.ts (mocked), add playwright.config.ts
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 47: Tab button locator breaks with emoji text
+## ════════════════════════════════════════════════════════
+**ID:** P047
+**Type:** Test fix (locator resilience)
+**Commit:** fix: resilient tab button locators for emoji text (P047)
+**Symptom:** "should show Browse hadiths tab" fails — emoji in button text
+**Root cause:** "📚 Browse hadiths" — emoji creates separate text node in headless Chromium
+**Fix:** Superseded by P048 — test functionality not labels
+**Status:** SUPERSEDED by P048
+
+## ════════════════════════════════════════════════════════
+## PATTERN 48: Never test emoji tab labels — test functionality
+## ════════════════════════════════════════════════════════
+**ID:** P048
+**Type:** Test architecture fix
+**Commit:** fix: test tab functionality not emoji label text (P048)
+**Symptom:** Same Browse tab test fails despite different locators (CI #7, #8)
+**Root cause:** Testing UI LABEL TEXT not FUNCTIONAL OUTCOME. Emojis non-deterministic.
+**Fix:** Test what content loads when tab is active, not the tab button text.
+  Use page.evaluate() to click emoji buttons by partial textContent.
+**Rule:** Never write tests asserting UI label text containing emojis
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 49: Dual Seerah sources for UZ/TJ/RU vs AR/EN
+## ════════════════════════════════════════════════════════
+**ID:** P049
+**Type:** Feature enhancement (content quality)
+**File:** app/api/generate-reel/route.ts (HR)
+**Commit:** feat: dual seerah sources — Uswa al-Hasana for UZ/TJ/RU (P049)
+**Why:** Ar-Raheeq Al-Makhtum is scholarly/historical (AR/EN audience).
+  Усваи Хасана is emotional/devotional/warm (UZ/TJ/RU Central Asian audience).
+**Implementation:** getSeerahSource(lang) returns source + attribution per language
+**Status:** IMPLEMENTED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 50: TJ no text_tajik column — Russian display fallback
+## ════════════════════════════════════════════════════════
+**ID:** P050
+**Type:** Language handling (documented design decision)
+**File:** app/api/reels/route.ts (HR)
+**Symptom:** TJ selected → shows Russian text — looks like a bug
+**Explanation:** hadith_library has no text_tajik column. Russian is correct fallback.
+  TJ narration still produced in Tajik Cyrillic via Claude in generate-reel.
+**Status:** DOCUMENTED — working as designed
+
+## ════════════════════════════════════════════════════════
+## PATTERN 51: Remotion CLI binary not found
+## ════════════════════════════════════════════════════════
+**ID:** P051
+**Type:** Dev environment fix
+**Commit:** fix: install @remotion/cli@4.0.460 — binary was missing
+**Symptom:** "remotion is not recognized as internal or external command"
+**Root cause:** remotion installed as library dependency but CLI comes from
+  separate @remotion/cli package — node_modules/.bin/remotion didn't exist
+**Fix:** npm install --save-dev @remotion/cli@4.0.460
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 52: remotion/index.ts must be .tsx for JSX
+## ════════════════════════════════════════════════════════
+**ID:** P052
+**Type:** TypeScript fix
+**Commit:** fix: rename remotion/index.ts to .tsx — JSX requires .tsx (P052)
+**Symptom:** CI #15 — 11 TypeScript errors: ';' expected, ':' expected in index.ts
+**Root cause:** File uses JSX (<Composition>, <>) but has .ts extension
+**Fix:** Rename to index.tsx
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 53: Remotion component LooseComponentType error
+## ════════════════════════════════════════════════════════
+**ID:** P053
+**Type:** TypeScript fix
+**Commit:** fix: cast Remotion component types to any (P053)
+**Symptom:** "FC<HadithReelProps> not assignable to LooseComponentType<Record<string,unknown>>"
+**Fix:** component={HadithReel as React.ComponentType<any>}
+  defaultProps={defaults as unknown as Record<string, unknown>}
+**Note:** Double cast through unknown required — single cast rejected as non-overlapping
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 54: @remotion/renderer native binaries break Next.js build
+## ════════════════════════════════════════════════════════
+**ID:** P054
+**Type:** Build fix (native module externalization)
+**Files:** next.config.js, app/api/render-reel/route.ts (HR)
+**Commit:** fix: externalize Remotion from Next.js build — native binaries (P054)
+**Symptom:** "Can't resolve '@remotion/compositor-win32-x64-msvc'"
+**Root cause:** @remotion/renderer imports platform-native C++ binaries.
+  Next.js webpack tries to bundle ALL platforms — Linux CI has no Windows binary.
+  Also: Remotion can't run on Vercel (needs 4GB RAM + FFmpeg + 10min timeout)
+**Fix:** serverExternalPackages in next.config.js + 501 response on Vercel
+**Rule:** Never import native binary packages in Next.js routes without externalizing
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 55: serverComponentsExternalPackages moved to serverExternalPackages
+## ════════════════════════════════════════════════════════
+**ID:** P055
+**Type:** Next.js config fix
+**Commit:** fix: serverExternalPackages + remove webpack for Turbopack (P055)
+**Symptom:** "Unrecognized key: serverComponentsExternalPackages at experimental"
+  + "This build uses Turbopack with webpack config and no turbopack config"
+**Root cause:** Next.js 15+ moved key out of experimental{}. Next.js 16 uses
+  Turbopack by default — webpack config conflicts.
+**Fix:** Top-level serverExternalPackages + turbopack: {} + remove webpack fn
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 56: registerRoot() missing from Remotion entry point
+## ════════════════════════════════════════════════════════
+**ID:** P056
+**Type:** Remotion config fix
+**File:** remotion/index.tsx
+**Commit:** fix: add registerRoot() to Remotion entry point (P056)
+**Symptom:** "This file does not contain registerRoot()"
+**Fix:** Import registerRoot from 'remotion' and call registerRoot(Root) at bottom
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 57: HadithReel v3 + KidsReel v2 — WCAG AA large fonts
+## ════════════════════════════════════════════════════════
+**ID:** P057
+**Type:** Feature enhancement (WCAG 2.1 AA compliance)
+**Files:** remotion/compositions/HadithReel.tsx, KidsReel.tsx
+**Commit:** feat: HadithReel v3 + KidsReel v2 — WCAG AA, large fonts, animations
+**Changes Adults:** Arabic 72px, Translation 48px, Story 34px, Moral 44px
+  Scene gradients per scene, Ken Burns camera drift, animated gold divider
+  All text: #F5F0E8 on dark = 14:1+ ✅ AAA. Gold #D4AF37 = 5.8:1 ✅ AA
+**Changes Kids:** Spring-in animations, bouncing emojis, star burst on moral,
+  Arabic 60px on gold card, Story 36px bold, Moral 40px bold
+  All text: white on dark = 21:1 ✅ AAA. Yellow #FFE234 = 9.2:1 ✅ AA
+**Status:** IMPLEMENTED — renders locally as MP4
+
+## ════════════════════════════════════════════════════════
+## PATTERN 58: TJ missing from ReplyLang + UZ reads as Latin
+## ════════════════════════════════════════════════════════
+**ID:** P058
+**Type:** Bug fix (language support + BCP-47 codes)
+**Files:** app/page.tsx, components/TTSPlayer.tsx
+**Commit:** fix: add TJ to ReplyLang, fix UZ BCP-47 code for browser TTS (P058)
+**Bug 1:** type ReplyLang missing 'tj' — TJ button not visible
+**Bug 2:** SpeechSynthesisUtterance.lang='uz' not valid BCP-47 → English fallback
+**Fix:** Add 'tj' to ReplyLang type + buttons. Map uz → 'uz-UZ', tj → 'ru-RU'
+**Also fixed:** Syntax error in page.tsx: | \'tj' → | 'tj' (backslash from patch file)
+**Status:** FIXED — CI #143, #144 green
+
+## ════════════════════════════════════════════════════════
+## PATTERN 59: TTS reads URLs, bullets, special chars literally
+## ════════════════════════════════════════════════════════
+**ID:** P059
+**Type:** UX bug fix (TTS text preprocessing)
+**File:** components/TTSPlayer.tsx
+**Commit:** fix: sanitize text before TTS — remove URLs bullets special chars (P059)
+**Bug 1:** "Listen to analysis" says "slash slash sunnah dot com bukhari colon 8"
+**Bug 2:** UZ "Listen" says "dot dot dot" for ◆ bullet characters
+**Bug 3:** TJ/UZ numbers read in Russian accent (ElevenLabs behavior — acceptable)
+**Fix:** sanitizeForTTS() strips URLs, bullets, #refs, markdown, tier labels
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PRE-PUSH PROTOCOL — added CI #144
+## ════════════════════════════════════════════════════════
+**Added:** May 2026 after CI #122–143 (20+ preventable failures)
+**Implementation:**
+  - .git/hooks/pre-push script in both HV and HR
+  - Runs: tsc --noEmit + playwright tests before every git push
+  - Blocks push if any test fails
+  - First enforced push: CI #144 ✅ green
+**Rule:** NEVER git push without local tests passing first
+**Bypass (doc-only commits):** git push --no-verify
