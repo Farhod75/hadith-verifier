@@ -258,7 +258,7 @@ export default function Home() {
         {/* HadithReels cross-link banner */}
         <div className="bg-emerald-800 text-white text-xs text-center py-1.5 px-4">
           ✨{' '}
-          <a href="https://hadithreels.com" target="_blank" rel="noopener noreferrer"
+          <a href="https://hadith-reels.vercel.app" target="_blank" rel="noopener noreferrer"
             className="underline font-medium hover:text-emerald-200">
             HadithReels.com
           </a>
