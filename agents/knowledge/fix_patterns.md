@@ -1199,3 +1199,99 @@ $env:BASE_URL = "https://hadithverifier.com"
 npx playwright test tests/language-speech.spec.ts --workers=1
 ```
 **Status:** FIXED — May 2026
+
+P039: Search tab showing English only — searchHadiths() sent replyLang
+(analyze tab reply lang, default 'en') instead of appLang (active UI lang).
+Fix: params.set('lang', appLang). One word change, line 123 page.tsx.
+
+P041: analyze route rewrite dropped FormData handler — image upload returned
+"Post text or image required" on both localhost and prod. Always handle both
+multipart/form-data AND application/json in route handlers that accept images.# Append to fix_patterns.md (HV — hadith-verifier)
+
+## ════════════════════════════════════════════════════════
+## PATTERN 78: Whisper STT produces Latin transliteration for UZ/TJ — q→k drift
+## ════════════════════════════════════════════════════════
+**ID:** P078 (cross-project — primary discovery in HR, applicable to HV)
+**Type:** STT/pipeline limitation (forward-looking)
+**Project:** hadith-verifier (originally discovered in hadith-reels)
+**Files potentially affected (future):**
+  - app/api/tts/route.ts — currently TTS-only (ElevenLabs out, no STT in)
+  - Any future audio-input feature (voice-paste hadith analysis, etc.)
+  - Future Listen-to-comment reverse verification (transcribe audio reply)
+**First observed:** May 15, 2026 — during HR TJ adults reel render
+**Discovered during:** Pre-Hajj reel production session (HR project)
+
+**Why log in HV:**
+  HV currently has no STT pipeline, but planned features include:
+  1. Voice-input mode (paste hadith via audio recording)
+  2. Reverse audio verification (transcribe Listen-to-comment output for QA)
+  3. Audio attachment analysis (WhatsApp voice notes claiming hadiths)
+
+  When any of these ships, this exact bug will reappear. Log it now so
+  the future implementer doesn't re-discover it from scratch.
+
+**Symptom (as observed in HR, will reproduce in HV):**
+  Whisper STT on Cyrillic-language audio (UZ Cyrillic, TJ Cyrillic) outputs:
+  1. Latin transliteration instead of Cyrillic script
+     - "Расул" → "Rasul"
+     - "Паёмбар" → "Payambar"
+  2. Q→K consonant drift (loses phonemic distinction)
+     - "қабул" → "kabul"
+     - "Қуръон" → "Kuran"
+  3. Output unreadable to Cyrillic-script native readers
+
+**Root cause (same as HR P078):**
+  Whisper training corpus for TJ/UZ dominated by Latin transliteration sources.
+  Tokenizer collapses /q/ and /k/ phoneme distinction in Turkic contexts.
+
+**Mitigation strategy for HV (when STT features are added):**
+
+  Preferred — Claude STT instead of Whisper:
+    Send audio directly to Claude Sonnet with explicit script instruction:
+    ```
+    "Transcribe this audio in [Tajik|Uzbek] Cyrillic script only.
+     Use Cyrillic characters Ҳ, Ҷ, Қ, Ғ, Ӯ.
+     Do NOT use Latin transliteration."
+    ```
+    Pros: better script-following, single API surface (already use Claude
+    for /api/analyze), no separate Whisper integration needed.
+    Cons: higher cost than Whisper, slower latency.
+
+  Fallback — Whisper + Latin→Cyrillic post-processor:
+    Use existing libraries:
+    - npm: uzbek-latin-cyrillic
+    - python: uzbek-translit
+    For TJ: hand-built mapping table required (no mature library yet).
+
+**Test pattern (when STT lands in HV):**
+  Add to api.spec.ts or new audio.spec.ts:
+  ```typescript
+  test('STT output for UZ Cyrillic audio uses Cyrillic script only', async () => {
+    const res = await ctx.post(`${BASE_URL}/api/stt`, {
+      data: { audioBase64: UZ_CYRILLIC_FIXTURE, lang: 'uz' }
+    })
+    const body = await res.json()
+    const transcript = body.transcript || ''
+    // Must contain Cyrillic
+    expect(/[\u0400-\u04FF]/.test(transcript)).toBe(true)
+    // Must NOT contain Latin letters
+    expect(/[a-zA-Z]/.test(transcript)).toBe(false)
+  })
+  ```
+
+**Connection to HV language tests:**
+  HV already has language script validation tests (audit_spec.ts):
+  - "AR output must use Arabic script" — `/[\u0600-\u06FF]/.test(comment)`
+  - "RU output must use Cyrillic script" — `/[\u0400-\u04FF]/.test(comment)`
+
+  When STT lands, extend the same script-validation pattern to transcripts.
+  This is a CHEAP, DETERMINISTIC test — perfect for push CI (no real API).
+
+**Reference reel where this was first observed:**
+  HR project: out/adults-tj-umra-reel-v2.mp4 (Sahih al-Bukhari #1773)
+  Posted: @SahihHadithReels, May 15, 2026
+  Workaround: shipped without subtitles (audio + Cyrillic caption only)
+
+**Status:** PRE-EMPTIVE LOG (no active HV bug — informational for future).
+  Active fix tracked in HR project (see hr/fix_patterns.md P078).
+  Permanent fix target: post-Hajj (06/06/2026), Option C in HR P078.
