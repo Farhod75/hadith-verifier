@@ -1,182 +1,236 @@
 # CLAUDE.md
-# Hadith Verifier — Context file for Claude Code
-# github.com/Farhod75/hadith-verifier
-# Last updated: May 2026 — CI #144 ✅
-# Read AGENTS.md and QA_STANDARDS_AGENT_RULES.md before every task
-# ============================================================
+# Project constitution for hadith-verifier
+# Auto-loaded by Claude Code on every session
+# Last updated: 2026-05-17
 
-## What this project does
-AI-powered Islamic hadith authentication. Detects fabricated/weak hadiths
-on social media. Generates compassionate correction comments with verified
-source deep-links. 6 languages: EN, UZ Latin, UZ Cyrillic, AR, RU, TJ.
-Seerah storytelling context (Ar-Raheeq Al-Makhtum) per analysis.
-Admin queue for human review. Telegram + Slack alerts for CRITICAL/HIGH.
+---
 
-Core principle: AI flags → humans decide. No auto-delete, no auto-ban.
+## 🧑 WHO
 
-## Tech stack
-- Frontend: Next.js 14 + TypeScript + Tailwind CSS
-- AI: Claude Sonnet (claude-sonnet-4-20250514)
-- DB: Supabase (shared with hadith-reels)
-- Hosting: Vercel
-- Alerts: Slack webhook + Telegram (Railway)
-- TTS: ElevenLabs + browser SpeechSynthesis fallback
-- Testing: Playwright + pytest + axe-core (WCAG 2.1 AA)
-- Analytics: Google Analytics G-32J9GLEBKS
+**Developer:** Farhod Elbekov — SDET / AI QA Engineer, Charlotte NC
+**Stack:** Next.js 14 + TypeScript + Anthropic Claude API + Supabase + Vercel + Tailwind
+**Tests:** 180 Playwright (TS) + 36 pytest (Python) — CT-GenAI aligned
+**Live:** https://hadithverifier.com
+**Repo:** github.com/Farhod75/hadith-verifier
+**Built as:** sadaqah jariyah — free, no ads, for the Muslim community
 
-## Project structure
+---
+
+## 🎯 PROJECT GOAL
+
+AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, WhatsApp, Telegram).
+
+**Features:**
+- Multi-tab UI: Analyze / Dua Corrector / Sources / Admin Queue
+- 5 languages: EN, UZ, AR, RU, TJ
+- Severity scoring: CRITICAL / HIGH / MEDIUM / LOW
+- OCR via Claude Vision (screenshot uploads)
+- Telegram bot + Slack alerts
+- Admin queue for human review
+- Source authority tiers (Tier 1: Dorar.net, Sunnah.com; Tier 2: IslamQA, Yaqeen)
+
+---
+
+## 🚨 HARD RULES (NEVER VIOLATE)
+
+### 1. Architecture Philosophy
+- **AI flags, humans decide.** NEVER auto-delete posts. NEVER auto-ban users.
+- Supabase stores flagged posts AFTER analysis — admin queue only, not source of truth.
+- Prompt-based AI for hadith verification — Claude training knowledge is the source.
+- No RAG for hadith content (yet — Phase 1 of RAG roadmap will add Dorar.net PDFs).
+
+### 2. Security
+- ALWAYS use `sanitizeInput()` before passing user text to Claude API.
+- ALWAYS run `validateOutput()` on Claude responses before returning to client.
+- `TRUSTED_DOMAINS` whitelist enforced on all URL submissions.
+- Rate limit: 100 requests/day/IP (generous for users, blocks abuse).
+
+### 3. Supabase RLS (FP-001 — CRITICAL)
+- RLS policies silently block reads if misconfigured.
+- ALWAYS test with: `select * from flagged_posts;` directly in SQL editor BEFORE assuming code bug.
+- Test with anon key + authenticated key separately.
+
+### 4. Environment Variables
+- NEVER commit `.env*` files. `.env.example` only with placeholder values.
+- Vercel env vars MUST be set in dashboard before deploy — placeholders survive otherwise (FP-002).
+- After env change → `vercel --prod --force` (FP-005).
+- Watch for double `https://` in Supabase URL (FP-003).
+
+### 5. Boolean Filters (FP-004)
+- NEVER use `.eq('reviewed', false)` if column allows NULL — it skips NULL rows.
+- Use `.or('reviewed.is.null,reviewed.eq.false')`.
+
+### 6. Accessibility (FP-006)
+- NEVER use `text-gray-400` for body content — fails WCAG 2.1 AA (2.53:1 contrast).
+- Use `text-gray-600` minimum. Run `axe-core` in CI.
+
+### 7. CT-GenAI Test Patterns
+- Severity bucket consistency: same input → same severity across 5 runs.
+- Non-determinism: temperature variance ≤ 0.1 between identical prompts.
+- Hallucination detection: every reference URL must resolve (200 OK) + be in TRUSTED_DOMAINS.
+- Multilingual parity: same input in EN/UZ/AR/RU/TJ → same severity bucket.
+
+### 8. UZ Language (P029)
+- UZ switches between Latin and Cyrillic depending on user device.
+- Assertions MUST accept both scripts: `expect(text).toMatch(/(salom|салом)/i)`.
+
+---
+
+## 🧰 STACK & FILES
+
+### Core
+- `app/api/analyze/route.ts` — main Claude API call, rate limiting, validation
+- `app/api/dua-correct/route.ts` — Dua correction endpoint
+- `app/api/admin/queue/route.ts` — admin review queue
+- `lib/sanitize.ts` — input sanitization
+- `lib/validate.ts` — output validation, TRUSTED_DOMAINS check
+- `lib/severity.ts` — CRITICAL/HIGH/MEDIUM/LOW scoring
+
+### Components
+- `components/AnalyzeTab.tsx`, `components/DuaCorrectorTab.tsx`
+- `components/SourcesTab.tsx`, `components/AdminQueueTab.tsx`
+- `components/LanguageSwitcher.tsx` — 5 languages
+
+### Tests
+- `tests/playwright/` — 180 TypeScript tests
+  - `analyze.spec.ts`, `dua.spec.ts`, `admin.spec.ts`
+  - `multilingual.spec.ts` — EN/UZ/AR/RU/TJ
+  - `severity-consistency.spec.ts` — non-determinism tests
+  - `references.spec.ts` — URL validation, TRUSTED_DOMAINS
+  - `accessibility.spec.ts` — axe-core WCAG 2.1 AA
+- `tests/pytest/` — 36 Python tests
+  - LLM evaluation harness (correctness, safety, consistency 0-1.0 scale)
+  - Rate limit tests
+  - Telegram bot integration
+
+### Bot
+- `bot/telegram-bot.py` — hosted on Railway
+- Triggers Slack alerts for CRITICAL severity
+
+### Documentation
+- `QA_STANDARDS.md` — testing standards (this file's source of truth for QA rules)
+- `FIX_PATTERNS.md` — 32+ patterns (P001-P032)
+- `ABOUT.md` — developer context
+
+---
+
+## 📋 PRE-FLIGHT CHECKLIST (Run at START of every session)
+
+```bash
+# 1. Read constitution
+cat CLAUDE.md QA_STANDARDS.md FIX_PATTERNS.md
+
+# 2. Check repo state
+git status
+git log --oneline -5
+
+# 3. Verify env
+cat .env.example
+ls .env*  # should ONLY show .env.example committed
+
+# 4. Run smoke test
+npm run test:smoke
 ```
-hadith-verifier/
-├── app/
-│   ├── page.tsx                   — 5 tabs: Analyze|Dua|Sources|Admin|Search
-│   ├── layout.tsx
-│   └── api/
-│       ├── analyze/route.ts       — Claude + severity + seerah_context
-│       ├── queue/route.ts         — Supabase CRUD
-│       ├── search/route.ts        — hadith_library queries
-│       ├── stats/route.ts
-│       └── tts/route.ts           — ElevenLabs proxy
-├── components/
-│   ├── TTSPlayer.tsx              — P058/P059: BCP-47 codes + text sanitization
-│   └── SpeechInput.tsx
-├── lib/i18n.ts                    — 6 language UI translations
-├── tests/
-│   ├── fixtures/test-data.ts      — FABRICATED_POSTS, getSeverity()
-│   ├── hadith-verifier.spec.ts    — P043: ALL MOCKED CI tests
-│   ├── api.spec.ts                — P044: severity unit tests
-│   ├── audit_spec.ts              — post-deploy only (P045: NOT in CI)
-│   └── python/test_analyze_api.py — 46 pytest tests
-├── .github/workflows/ci.yml       — push: mocked only | dispatch: audit
-├── .githooks/pre-push             — P059: local tests before every push
-├── .git/hooks/pre-push            — active hook (copy of .githooks)
-├── AGENTS.md                      — agent orchestration rulebook
-├── QA_STANDARDS_AGENT_RULES.md    — universal QA standards
-├── CI_WORKFLOW_TEMPLATE.md        — CI yml template for all projects
-└── fix_patterns.md                — P037–P059 documented
-```
 
-## API response shape (current)
-```json
-{
-  "verdict":              "fabricated|weak|authentic|unclear|no_hadith",
-  "confidence":           "high|medium|low",
-  "severity":             "CRITICAL|HIGH|MEDIUM|LOW",
-  "claim_summary":        "string",
-  "analysis":             "string",
-  "authentic_alternative":"string",
-  "red_flags":            ["string"],
-  "references":           [{"source","description","url","authority":"tier1|2|3"}],
-  "suggested_comment":    "string",
-  "seerah_context":       "string — Ar-Raheeq Al-Makhtum story"
-}
-```
-Shape change → update: interface + CLAUDE.md + audit_spec.ts + MOCK_RESPONSE
+---
 
-## Severity (deterministic — test as unit tests P044)
-```
-fabricated + high → CRITICAL  |  fabricated + med/lo → HIGH
-weak + high → HIGH            |  weak + med/lo → MEDIUM
-authentic/no_hadith → LOW     |  unclear → MEDIUM
-```
+## 🔁 STANDARD WORKFLOWS
 
-## Languages
-| Code | Label | TTS BCP-47 | Notes |
-|---|---|---|---|
-| en | English | en-US | default |
-| uz_latin | Uzbek Latin | uz-UZ | — |
-| uz_cyrillic | Ўзбек | uz-UZ | explicit Cyrillic in prompt |
-| ru | Русский | ru-RU | — |
-| ar | العربية | ar-SA | — |
-| tj | Тоҷикӣ | ru-RU | Tajik Cyrillic via Claude |
+### Workflow A — Fix a bug
+1. Reproduce locally first
+2. Search FIX_PATTERNS.md for similar pattern (P001-P032)
+3. Write Playwright OR pytest test that reproduces it
+4. Apply fix
+5. Run: `npm run test` + `pytest tests/pytest`
+6. Update FIX_PATTERNS.md if novel
+7. Commit: `fix: description [P0XX]`
+8. Push → Vercel auto-deploys
+9. Verify on hadithverifier.com prod
 
-- Search: uses appLang (P039)
-- Reply: replyLang auto-syncs to appLang via useEffect (P042)
-- TTS: sanitizeForTTS() strips URLs/bullets before playback (P059)
+### Workflow B — Add a new language
+1. Add translations to `lib/i18n/<lang>.json`
+2. Add to `LanguageSwitcher.tsx` dropdown
+3. Add to multilingual parity test
+4. Verify Claude API returns correct script (Latin/Cyrillic/Arabic)
+5. Add severity bucket consistency test for new language
 
-## Supabase
-- Shared with hadith-reels: xeirfeqnbjfyszykiraa.supabase.co
-- RLS DISABLED on flagged_posts (P001 — silently blocks reads)
-- ALWAYS use SUPABASE_SERVICE_ROLE_KEY server-side
-- Tables: flagged_posts, hadith_library (70), hadith_reels, quran_library
+### Workflow C — Update source authority tier
+1. Add domain to `TRUSTED_DOMAINS` in `lib/validate.ts`
+2. Update `components/SourcesTab.tsx` to display
+3. Test reference resolution returns 200 OK
+4. Update README source tier table
 
-## Source authority tiers
-- Tier 1: sunnah.com, dorar.net, hadeethenc.com
-- Tier 2: islamqa.info, islamweb.net, yaqeeninstitute.org, islamhouse.com
-- Tier 3: hadithapi.com, aboutislam.net, alsunnah.com
-- Seerah (storytelling only): Ar-Raheeq Al-Makhtum
+### Workflow D — CI Pipeline
+- `.github/workflows/ci.yml` runs on every push:
+  - TypeScript check
+  - 180 Playwright tests
+  - 36 pytest tests
+  - axe-core accessibility scan
+  - References URL validation (all must 200 OK)
+- BLOCKS deploy if red.
 
-## Run commands (Windows PowerShell)
-```powershell
-npm run dev -- -p 3001
+---
 
-# Pre-push test sequence (mandatory):
-npx tsc --noEmit
-npx playwright test tests/hadith-verifier.spec.ts --project=chromium
-npx playwright test tests/api.spec.ts --project=chromium
+## 🐛 BUG LOG (auto-updated by Claude Code)
 
-# Post-deploy audit (manual only):
-$env:BASE_URL="https://hadithverifier.com"
-npx playwright test tests/audit_spec.ts --reporter=list
+When fixing a bug, Claude Code MUST append an entry here:
 
-# Real API tests:
-npx playwright test --grep @real-api
+<!-- Claude Code: prepend new bug entries below this line -->
 
-# Python pytest:
-cd tests/python; pytest test_analyze_api.py -v
+## REFERENCE: Top 5 Production Bugs
 
-vercel --prod --force
-```
+### FP-001: Supabase RLS silently blocks reads
+**Symptom:** Empty arrays from queries, no errors, works in SQL editor
+**Fix:** Check RLS policies — add SELECT policy for authenticated/anon roles explicitly
+**Test:** `tests/playwright/admin.spec.ts` — verifies admin queue loads
 
-## CI workflow
-Push → pre-push hook runs tests locally first → if pass → push → CI:
-- ✅ TypeScript check (continue-on-error)
-- ✅ api.spec.ts (severity unit tests, mocked where needed)
-- ✅ hadith-verifier.spec.ts (ALL mocked, P043)
-- ⊘ audit_spec.ts (P045 — manual dispatch only)
-- ⊘ language-speech.spec.ts (P045 — manual only)
+### FP-002: Placeholder env survives to Vercel prod
+**Symptom:** `your-api-key-here` strings reach production
+**Fix:** Validate env on startup with Zod schema — throw if placeholder pattern detected
 
-Manual: GitHub Actions → Run workflow → run_audit=true
+### FP-003: Double `https://` in Supabase URL
+**Symptom:** `https://https://abc.supabase.co` — fetch fails silently
+**Fix:** Strip prefix before concat: `url.replace(/^https?:\/\//, '')`
 
-## Test suite
-- Playwright CI: ~30 tests, mocked, ~5 min
-- pytest: 46 tests
-- audit_spec.ts: post-deploy, 29 tests, manual only
-- fix_patterns.md: P037–P059 (23 patterns this session alone)
+### FP-004: `.eq('reviewed', false)` misses NULL rows
+**Symptom:** New posts (reviewed=NULL) don't appear in admin queue
+**Fix:** `.or('reviewed.is.null,reviewed.eq.false')`
 
-## CI history (this session)
-- #122–131 ❌ P037–P043 chain (selector/timeout/mock issues)
-- #132 ❌ P043 fix not pushed
-- #133 ❌ P044 severity called real Claude
-- #134 ❌ P044/P045 audit in CI
-- #135–136 ❌ P045 audit 18 failures + wrong filename
-- #137 ❌ package-lock out of sync
-- #138–140 ❌ P052–P055 Remotion TypeScript/config
-- #141 ❌ P058 backslash syntax error in page.tsx
-- #142 ❌ P058 Vercel build syntax error (same)
-- #143 ✅ P058+P059 fixed
-- #144 ✅ pre-push hooks installed — first enforced push
+### FP-005: Stale Vercel build after env change
+**Symptom:** New env not picked up after `vercel --prod`
+**Fix:** `vercel --prod --force` to bypass build cache
 
-## Fix patterns applied (P037–P059)
-P037 URL locator scope · P038 AR comment .last() · P039 search appLang
-P040 timeout seerah_context · P041 FormData dropped · P042 replyLang sync
-P043 mock CI tests · P044 severity unit test · P045 audit from CI
-P046-P048 HR CI fixes · P049 dual seerah sources · P050 TJ fallback
-P051 Remotion CLI · P052 .tsx extension · P053 component cast
-P054 native binaries · P055 serverExternalPackages · P056 registerRoot()
-P057 WCAG AA large fonts · P058 TJ+BCP-47 · P059 TTS text sanitization
-Pre-push protocol: local tests mandatory before every git push
+### FP-006: text-gray-400 fails WCAG 2.1 AA
+**Symptom:** axe-core reports contrast violations (2.53:1, need 4.5:1)
+**Fix:** Use `text-gray-600` or darker for body content
 
-## Pending features
-- Feature 3: ShareCard — NOT STARTED
-- Feature 4: User History — NOT STARTED
-- Feature 5: PWA — NOT STARTED
-- Feature 6: Bookmarklet — NOT STARTED
-- Feature 7: Email Digest (Resend API) — NOT STARTED
-- Phase 2: HadeethEnc import (5000+ hadiths) — NOT STARTED
-- Phase 3: pgvector RAG — NOT STARTED
+---
 
-## Live URLs
-- https://hadithverifier.com (production)
-- https://hadith-verifier-vp57.vercel.app (backup)
-- https://github.com/Farhod75/hadith-verifier
-- https://hadith-reels.vercel.app (companion)
+## 🌐 KEY URLS
+
+- Live: https://hadithverifier.com
+- Repo: https://github.com/Farhod75/hadith-verifier
+- CI: https://github.com/Farhod75/hadith-verifier/actions
+- Source authorities: Dorar.net, Sunnah.com, HadeethEnc.com (Tier 1)
+
+---
+
+## 🛠️ AUTO-LOGGING PROTOCOL
+
+When Claude Code starts work, it MUST:
+
+1. Before any code change — append `[WIP]` entry to BUG LOG with timestamp
+2. After tests pass — update to `[DONE]` with pattern ID (P0XX)
+3. If novel pattern — append to `FIX_PATTERNS.md` with full template
+4. At session end — append to `AGENTS.md` session log (if exists)
+5. Commit message format: `<type>: <description> [P0XX]`
+
+Types: feat, fix, docs, test, refactor, chore, ci, sec (security)
+
+---
+
+## 🕋 PHILOSOPHY
+
+This is sadaqah jariyah. No ads. No tracking. No monetization.
+The goal is to protect Muslims from fabricated hadiths spreading on social media.
+Quality matters more than speed. Test everything. Trust nothing the AI says without validation.
