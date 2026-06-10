@@ -1,623 +1,1022 @@
+# Hadith Verifier — Known Fix Patterns
+# Auto-loaded by Playwright Agent (CAG)
+#
+# RECONCILED 2026-06-10: rebuilt from clean sources to repair two corrupted copies
+#   (root fix_patterns.md + agents/knowledge/fix_patterns.md). This is the canonical
+#   global pattern sequence (numbering shared with hadith-reels / HR).
+#   Collision resolutions during reconciliation:
+#     - P032 = rate-limiting (only surviving authored block under that ID)
+#     - P036 = UZ-greeting audit fix (kept in the P033-P036 test-fix run)
+#     - axe/WCAG file-input fix (was a 2nd duplicate P036) renumbered -> P080
+
+
 ## ════════════════════════════════════════════════════════
-## PATTERN 37: Hallucination URL test — locator too broad
+## PATTERN 1: AI returns null/object instead of array
 ## ════════════════════════════════════════════════════════
-**ID:** P037
-**Type:** Test fix (locator scope)
-**Commit:** fix: scope source link locator to result panel — CI #122
+**ID:** P001
+**Type:** Source fix (route.ts)
+**Commit:** 8cc786d fix: normalize references and red_flags to always be arrays
 **Symptom:**
-  - hadith-verifier.spec.ts:171 — Hallucination detection test fails
-  - expect(VALID_SOURCE_DOMAINS.some(d => href?.includes(d))).toBe(true)
-  - Expected: true  Received: false
-  - CI #122 red
+  - expect(Array.isArray(body.references)).toBe(true) → FAILED (received false)
+  - expect(Array.isArray(body.red_flags)).toBe(true) → FAILED
+  - Files: api.spec.ts:40, api.spec.ts:66
 
 **Root cause:**
-  `page.locator('a[href^="https://"]').first()` grabs the FIRST https://
-  link on the entire page — which after adding the HadithReels banner and
-  cross-links could be hadithreels.com, hadithverifier.com, or any nav/footer
-  link — none of which are in VALID_SOURCE_DOMAINS.
-  The test was accidentally validating the wrong link.
+  Claude API occasionally returns null, undefined, or an object
+  instead of an array for references and red_flags fields.
 
-**Fix — scope locator to result panel:**
+**Fix — add immediately after JSON.parse in route.ts:**
 ```ts
-// WRONG — grabs first https:// link on entire page:
-const links = page.locator('a[href^="https://"]')
-const href = await links.first().getAttribute('href')
-expect(VALID_SOURCE_DOMAINS.some(d => href?.includes(d))).toBe(true)
-
-// RIGHT — scope to main result panel, check ALL source links:
-await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
-const resultPanel = page.locator('main').first()
-const sourceLinks = resultPanel.locator('a[href^="https://"]')
-const count = await sourceLinks.count()
-expect(count).toBeGreaterThan(0)
-let foundValidSource = false
-for (let i = 0; i < count; i++) {
-  const href = await sourceLinks.nth(i).getAttribute('href')
-  if (href && VALID_SOURCE_DOMAINS.some(d => href.includes(d))) {
-    foundValidSource = true
-    break
-  }
-}
-expect(foundValidSource).toBe(true)
+result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+if (!Array.isArray(result.references)) result.references = []
+if (!Array.isArray(result.red_flags))  result.red_flags  = []
 ```
-
-**Also wait for:** `text=/verified sources/i` — ensures result panel is
-fully rendered before querying links inside it.
-
 **Status:** FIXED
+
 ## ════════════════════════════════════════════════════════
-## PATTERN 38: AR/UZ/RU language tests — wrong comment element
+## PATTERN 2: UI timeout waiting for source reference links
 ## ════════════════════════════════════════════════════════
-**ID:** P038
-**Type:** Test fix (locator scope + non-determinism)
-**Commit:** fix: use evaluate() to scope comment block — CI #123
+**ID:** P002
+**Type:** Test fix + prompt fix (both required)
+**Commits:**
+  - 11f3b74 fix: stronger references prompt + increase timeout on flaky URL tests
+  - f25b170 fix: increase timeout on flaky source reference UI tests
+  - 646929e fix: force minimum 2 references in prompt
 **Symptom:**
-  - hadith-verifier.spec.ts:202 — AR language test fails
-  - expect(hasArabic).toBe(true) → Expected: true  Received: false
-  - CI #123 red. UZ/RU tests pass by luck.
+  - TimeoutError: page.waitForSelector('a[href^="https://"]') timeout 60000ms
+  - TimeoutError: page.waitForSelector('text=/verified sources/i') timeout 60000ms
+  - Files: hadith-verifier.spec.ts:151, hadith-verifier.spec.ts:163
 
 **Root cause:**
-  `.bg-gray-50.rounded-lg` exists in multiple places on the page:
-  - Comment block (the target)
-  - Arabic hadith display block (dir="auto", same class)
-  - Dua tab textarea (bg-gray-50)
-  - Red flags items
-  `.last()` is non-deterministic in headless CI — render order differs
-  from local. For AR: `.last()` grabs the Arabic hadith quote block
-  which in headless CI returns no Arabic text → hasArabic = false → FAIL.
+  1. AI returns empty references array (P001 partially covers this)
+  2. Default 60s timeout too short for AI + UI render in CI
 
-**Fix — use page.evaluate() with label anchor:**
+**Fix 1 — increase test timeouts:**
 ```ts
-// WRONG — .last() non-deterministic across multiple .bg-gray-50 elements:
-const text = await page.locator('.bg-gray-50.rounded-lg').last().textContent()
-const hasArabic = /[\u0600-\u06FF]/.test(text || '')
-expect(hasArabic).toBe(true)
-
-// RIGHT — find wrapper via unique "(AR)/(EN)/(RU)/(UZ)" label text:
-async function getCommentBlockText(page): Promise<string> {
+test('should provide source references', async ({ page }) => {
+  test.setTimeout(120000)
   await page.waitForSelector('text=/verified sources/i', { timeout: 90000 })
-  return page.evaluate(() => {
-    const allDivs = Array.from(document.querySelectorAll('div'))
-    const wrapper = allDivs.find(el =>
-      el.textContent?.match(/ready.to.post|\(EN\)|\(UZ\)|\(AR\)|\(RU\)|\(TJ\)/i) &&
-      el.querySelector('.bg-gray-50')
-    )
-    return wrapper?.querySelector('.bg-gray-50')?.textContent?.trim() || ''
-  })
-}
+})
+test('should provide real URLs from valid sources', async ({ page }) => {
+  test.setTimeout(120000)
+  await page.waitForSelector('a[href^="https://"]', { timeout: 90000 })
+})
 ```
 
-**Also:** AR assertion relaxed to `hasArabic || hasLatin` — Claude sometimes
-uses transliteration in compassionate Arabic comments (non-determinism, P014).
+**Fix 2 — strengthen prompt in route.ts (both image and text paths):**
+```ts
+`\nCRITICAL: Always include at least 2 real references with real URLs
+from sunnah.com, dorar.net, or islamqa.info. Never return an empty references array.`
+```
 
-**Wait anchor changed:** now waits for `text=/verified sources/i` instead of
-`.bg-gray-50.rounded-lg` — ensures full result panel is rendered before
-evaluating the comment block.
+**Fix 3 — jsonTemplate with 2 example references:**
+```ts
+"references":[
+  {"source":"Sunnah.com","url":"https://sunnah.com/bukhari","authority":"tier1"},
+  {"source":"Dorar.net","url":"https://dorar.net/hadith","authority":"tier1"}
+]
+```
+**Status:** IN PROGRESS — still flaky, monitor
 
-**Status:** FIXED
 ## ════════════════════════════════════════════════════════
-## PATTERN 39: Search tab shows English only for UZ/RU users
+## PATTERN 3: Language drift — Uzbek phrases in Tajik output
 ## ════════════════════════════════════════════════════════
-**ID:** P039
-**Type:** Bug fix (wrong state variable)
-**File:** app/page.tsx — searchHadiths() function
-**Commit:** fix: search uses appLang not replyLang for translation display (P039)
-
+**ID:** P003
+**Type:** Prompt fix (route.ts langInstruction)
+**Commits:**
+  - 5c9602d fix: strengthen TJ language instruction to prevent Uzbek drift
+  - cdb692f fix: explicitly ban Uzbek phrases in TJ output
 **Symptom:**
-  - User switches app to Ўзбек (uz_cyrillic) or Русский (ru)
-  - Searches "fasting" or any keyword
-  - Hadith card shows Arabic + English instead of Arabic + Uzbek/Russian
-  - text_display field in card shows English regardless of app language
+  - TJ suggested_comment contains Uzbek phrase "ташриф буюринг"
+  - Last sentence of TJ output reverts to Uzbek
+  - Salawat written as (с) instead of (с.а.в)
 
 **Root cause:**
-  searchHadiths() sends `lang` param using `replyLang` state variable.
-  `replyLang` controls the ANALYZE TAB comment language — defaults to 'en'
-  and only changes when user clicks EN/UZ/AR/RU reply buttons.
-  The search route uses `lang` param to pick which text_* column to return
-  as `text_display`. Since replyLang is always 'en' unless manually changed,
-  route always returns text_english regardless of app UI language (appLang).
+  Model trained on more Uzbek Islamic content than Tajik.
+  Tajik/Uzbek share Cyrillic script and Islamic vocabulary.
 
-**Fix — one word change, line 123 page.tsx:**
+**Fix — explicit negative + positive examples in lang === 'tg':**
+```ts
+`Do NOT use Uzbek words - avoid: "ташриф буюринг", "марҳамат қилинг".
+Use Tajik: "барои дидан гузаред" or "ба манба муроҷиат кунед".
+Every single sentence - including the last - must be in Tajik.
+When referring to the Prophet write (с.а.в).`
+```
+**Key learning:** Negative + positive examples beat general instructions
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 4: TypeScript build failure — em dash in template literal
+## ════════════════════════════════════════════════════════
+**ID:** P004
+**Type:** Syntax fix (route.ts)
+**Commit:** bb8f5d2 fix: replace em dashes in TJ lang instruction
+**Symptom:**
+  - Vercel build: "Expression expected", "Syntax Error"
+  - Error at langInstruction line in route.ts
+
+**Root cause:**
+  Em dash (--) pasted from formatted text into TypeScript template literal.
+  Also affects: curly quotes, smart apostrophes.
+
+**Fix:** Replace -- with - in template literals. Use plain ASCII only.
+**PowerShell check:**
+```powershell
+Get-Content app/api/analyze/route.ts | Select-Object -Index (87..94)
+```
+**Rule:** NEVER paste formatted text into TS template literals.
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 5: Anthropic API credits exhausted — mass test failure
+## ════════════════════════════════════════════════════════
+**ID:** P005
+**Type:** Infrastructure
+**Symptom:**
+  - 30+ tests fail simultaneously
+  - Error: "400 invalid_request_error: Your credit balance is too low"
+  - Basic "should return 200" test also fails
+
+**Root cause:**
+  console.anthropic.com credits ran out.
+  Separate from claude.ai subscription — two different billing systems.
+
+**Fix:**
+  1. console.anthropic.com → Billing → Buy credits ($10 min)
+  2. Enable auto-reload at $5 threshold → reload to $15
+  3. vercel --prod --force
+  4. Re-run GitHub Actions
+
+**Status:** FIXED + auto-reload enabled April 2026
+
+## ════════════════════════════════════════════════════════
+## PATTERN 6: Wrong Vercel API key / workspace mismatch
+## ════════════════════════════════════════════════════════
+**ID:** P006
+**Type:** Infrastructure
+**Symptom:**
+  - App works locally, fails in production
+  - Same credit error (P005) even after topping up
+
+**Root cause:**
+  Two API keys in two different Anthropic workspaces.
+  Credits in workspace A do not apply to key from workspace B.
+
+**Fix:**
+  1. console.anthropic.com → API Keys → check "Last used" column
+  2. Key with today's date + highest cost = production key
+  3. Create new key in same workspace as billing
+  4. Update in Vercel DASHBOARD (not just CLI)
+  5. vercel --prod --force
+
+**Status:** FIXED April 2026
+
+## ════════════════════════════════════════════════════════
+## PATTERN 7: Supabase RLS silently blocking reads
+## ════════════════════════════════════════════════════════
+**ID:** P007
+**Type:** Infrastructure (Supabase)
+**Commits:**
+  - 34cfd0b fix: remove RLS filter, add debug logging for queue route
+  - ef85486 fix: use service role key for Supabase server-side writes
+**Symptom:**
+  - Admin queue tab empty even when posts exist
+  - GET /api/queue returns [] with no error
+
+**Root cause:**
+  Supabase RLS enabled by default. Anon key cannot read rows.
+
+**Fix:**
+  - Disable RLS on flagged_posts table in Supabase dashboard
+  - Always use SUPABASE_SERVICE_ROLE_KEY in server routes
+  - Never use anon key for server-side DB operations
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 8: PowerShell curl/sed incompatibility (Windows)
+## ════════════════════════════════════════════════════════
+**ID:** P008
+**Type:** Developer environment
+**Symptom:**
+  - curl: "Bad hostname" or JSON parse errors
+  - sed: "The term 'sed' is not recognized"
+
+**Fix:**
+```powershell
+# curl replacement (all on ONE line):
+Invoke-RestMethod -Uri "https://url" -Method POST -ContentType "application/json" -Body '{"key":"val"}'
+
+# sed replacement:
+Get-Content file.ts | Select-Object -Index (87..94)
+```
+**Status:** DOCUMENTED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 9: Vercel env var update not reflecting
+## ════════════════════════════════════════════════════════
+**ID:** P009
+**Type:** Infrastructure (Vercel)
+**Symptom:**
+  - Updated env var via CLI but production still uses old value
+
+**Root cause:**
+  Vercel CLI and dashboard are not always in sync. Dashboard is authoritative.
+
+**Fix:**
+  1. Update in Vercel DASHBOARD → all 3 environments checked
+  2. Save → vercel --prod --force
+  3. Verify immediately with Invoke-RestMethod
+
+**Status:** DOCUMENTED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 10: Source links with specific hadith numbers hallucinated
+## ════════════════════════════════════════════════════════
+**ID:** P010
+**Type:** Prompt fix (route.ts)
+**Commit:** 76e37a1 fix: use general source links instead of specific hadith numbers
+**Symptom:**
+  - References contain URLs like sunnah.com/bukhari:9999 that return 404
+  - AI hallucinating specific hadith numbers that do not exist
+
+**Root cause:**
+  AI generates plausible-looking but non-existent hadith reference numbers.
+
+**Fix — use general collection URLs in jsonTemplate:**
+```ts
+// WRONG — AI hallucinates specific numbers:
+"url":"https://sunnah.com/bukhari:5013"
+
+// RIGHT — general collection links always valid:
+"url":"https://sunnah.com/bukhari"
+"url":"https://dorar.net/hadith"
+"url":"https://islamqa.info/en/answers"
+```
+**Also add to prompt:** "Use general collection URLs, not specific hadith numbers"
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 11: Stats counter test rate limit conflict in CI
+## ════════════════════════════════════════════════════════
+**ID:** P011
+**Type:** Test fix
+**Commits:**
+  - 1f22134 fix: handle rate limit in stats counter test
+  - 305b2c9 fix: skip stats counter test in CI to avoid rate limit conflict
+**Symptom:**
+  - Stats counter test fails intermittently in CI
+  - Rate limit error when parallel browsers hit API simultaneously
+
+**Root cause:**
+  CI runs Chromium + Mobile Chrome in parallel triggering rate limits.
+
+**Fix — skip in CI:**
+```ts
+test.skip(!!process.env.CI, 'Skipped in CI — rate limit conflict with parallel browsers')
+```
+**Status:** FIXED (skipped in CI)
+
+## ════════════════════════════════════════════════════════
+## PATTERN 12: Language switcher test — hidden translated elements
+## ════════════════════════════════════════════════════════
+**ID:** P012
+**Type:** Test fix
+**Commit:** Fix language switcher tests - avoid hidden translated elements (Run #13)
+**Symptom:**
+  - Element found but not visible — hidden behind closed dropdown
+
+**Fix:**
+```ts
+// Always open dropdown first, then click:
+await page.locator('header button').filter({ hasText: /English/ }).click()
+await page.getByText('Русский').click()
+await expect(page.locator('header button').filter({ hasText: /Русский/ })).toBeVisible()
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 13: Stats test fails on mobile — hidden on small viewport
+## ════════════════════════════════════════════════════════
+**ID:** P013
+**Type:** Test fix
+**Commit:** Fix stats test - use desktop viewport, scope to header (Run #14)
+**Symptom:**
+  - "Checked", "Flagged", "Authentic" not visible on Mobile Chrome
+
+**Root cause:**
+  Stats panel uses Tailwind sm:flex — hidden on mobile viewport.
+
+**Fix:**
+```ts
+test('should show stats panel', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await expect(page.locator('header').getByText('Checked').first()).toBeVisible()
+})
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 14: Authentic hadith test — asserting specific verdict
+## ════════════════════════════════════════════════════════
+**ID:** P014
+**Type:** Test fix (AI non-determinism)
+**Commit:** Fix authentic hadith test - validate structure not specific verdict (Run #12)
+**Symptom:**
+  - expected 'authentic' received 'unclear' — non-deterministic failure
+
+**Fix:**
 ```ts
 // WRONG:
-params.set('lang', replyLang)   // analyze tab reply lang, default 'en'
+expect(body.verdict).toBe('authentic')
 
 // RIGHT:
-params.set('lang', appLang)     // actual UI language user selected in header
+expect(['authentic', 'unclear', 'weak']).toContain(body.verdict)
+expect(body.references).toBeDefined()
+expect(body.suggested_comment.length).toBeGreaterThan(0)
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 15: E2E strict mode — multiple elements matched
+## ════════════════════════════════════════════════════════
+**ID:** P015
+**Type:** Test fix
+**Commit:** Fix E2E strict mode - target EN/UZ/AR/RU via Reply in container (Run #11)
+**Symptom:**
+  - "strict mode violation: locator resolved to X elements"
+  - EN/UZ/AR/RU buttons matched in multiple places
+
+**Fix — scope to Reply in: container:**
+```ts
+const replySection = page.locator('text=Reply in:').locator('..')
+await replySection.getByRole('button', { name: 'UZ' }).click()
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 16: api.spec.ts syntax error — clean rewrite required
+## ════════════════════════════════════════════════════════
+**ID:** P016
+**Type:** Test fix (syntax)
+**Commit:** Fix api.spec.ts syntax error - clean rewrite (Run #10)
+**Symptom:**
+  - TypeScript compilation error — build fails before any tests run
+
+**Fix:**
+  When syntax errors accumulate, do a clean rewrite of the spec file.
+  Always validate before pushing:
+```bash
+npx tsc --noEmit
+npx playwright test --list
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 17: Language tests — only checking suggested_comment field
+## ════════════════════════════════════════════════════════
+**ID:** P017
+**Type:** Test fix + prompt fix
+**Commits:**
+  - 086a1b8 fix: all analysis fields now respond in selected language (UZ/AR/RU)
+  - 07806a2 fix: language tests now validate all fields (analysis, claim_summary, red_flags)
+**Symptom:**
+  - Language tests pass for suggested_comment but analysis still in English
+
+**Fix — expand langInstruction to cover ALL fields:**
+```ts
+`CRITICAL LANGUAGE INSTRUCTION: You MUST write ALL of the following fields
+ENTIRELY in Uzbek: claim_summary, analysis, authentic_alternative,
+red_flags (every item), references (description only), and suggested_comment.`
 ```
 
-**Why appLang works directly:**
-  appLang values: 'en' | 'uz_latin' | 'uz_cyrillic' | 'ru' | 'ar' | 'tj'
-  Search route lang param accepts same values exactly — no mapping needed.
-
-**State variables clarified:**
-  replyLang → language of GENERATED COMMENT in Analyze tab (EN/UZ/AR/RU)
-  appLang   → language of the APP UI + Search tab translation display
-
+**Fix — expand test assertions:**
+```ts
+expect(
+  body.analysis?.includes('ҳадис') || body.claim_summary?.includes('ҳадис')
+).toBe(true)
+```
 **Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 41: analyze route rewrite dropped FormData handler
-## ════════════════════════════════════════════════════════
-**ID:** P041
-**Type:** Bug fix (route regression)
-**File:** app/api/analyze/route.ts
-**Commit:** fix: restore FormData image upload in analyze route (P041)
 
+## ════════════════════════════════════════════════════════
+## PATTERN 18: UZ UI test — Cyrillic fallback needed
+## ════════════════════════════════════════════════════════
+**ID:** P018
+**Type:** Test fix
+**Commit:** f74bad7 fix: UZ UI test - add Cyrillic fallback for language switching test
 **Symptom:**
-  - Image upload triggers alert "Post text or image required"
-  - Both localhost and production affected immediately after route replacement
-  - Text-only analysis still works
+  - Uzbek language test fails — expected Latin but app shows Cyrillic
+
+**Fix — accept both scripts:**
+```ts
+expect(
+  text?.includes('Assalomu') || text?.includes('Ассалому') ||
+  text?.includes('hadis')    || text?.includes('ҳадис')
+).toBe(true)
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 19: Import resolution — @/lib imports fail on Vercel
+## ════════════════════════════════════════════════════════
+**ID:** P019
+**Type:** Build fix
+**Commits:**
+  - bd01066 fix: use relative imports for severity and alerts
+  - 63523eb fix: correct relative import path to ../../../lib
+  - 52112e6 fix: add baseUrl to tsconfig for @/ path alias resolution
+  - 8827e6c fix: inline severity and alerts to eliminate import resolution issues
+  - 8170d5b fix: complete route.ts rewrite with all logic inlined
+**Symptom:**
+  - "Cannot find module '@/lib/severity'" — works locally, fails on Vercel
 
 **Root cause:**
-  Route rewrite for seerah_context was JSON-only. Dropped the
-  multipart/form-data handler. Frontend sends FormData when image is
-  selected (page.tsx line 152: fd.append('image', image)).
-  New route called req.json() on FormData → imageBase64 empty → 400 error.
+  @/ alias not always resolved in Next.js API routes on Vercel production.
+
+**Fix — inline all logic directly in route.ts (most reliable):**
+  Move calculateSeverity(), sendAlerts(), SYSTEM_PROMPT directly into route.ts.
+
+**Fix — if imports needed, use relative paths:**
+```ts
+// WRONG:
+import { calculateSeverity } from '@/lib/severity'
+// RIGHT:
+import { calculateSeverity } from '../../../lib/severity'
+```
+**Status:** FIXED — all logic now inlined in route.ts
+
+## ════════════════════════════════════════════════════════
+## PATTERN 20: tsconfig.json UTF-8 BOM encoding corruption
+## ════════════════════════════════════════════════════════
+**ID:** P020
+**Type:** Build fix
+**Commits:**
+  - 29f0325 fix: recreate tsconfig.json with correct UTF-8 encoding
+  - bb08c64 fix: trigger rebuild after tsconfig revert
+**Symptom:**
+  - Build fails with cryptic JSON parse error in tsconfig.json
+
+**Root cause:**
+  tsconfig.json saved with BOM on Windows. Node.js JSON parser fails on BOM.
 
 **Fix:**
-  Always handle BOTH content types in routes that accept images:
-  if (contentType.includes('multipart/form-data')) { await req.formData() }
-  else { await req.json() }
-
-**Rule going forward:**
-  Never replace an API route without checking ALL content-type paths.
-  Search for 'multipart' and 'formData' in the original before replacing.
-
+  Delete and recreate tsconfig.json. In VS Code: Save with Encoding → UTF-8 (not UTF-8 with BOM)
 **Status:** FIXED
 
 ## ════════════════════════════════════════════════════════
-## PATTERN 42: replyLang not synced to appLang on switch
+## PATTERN 21: Severity style type cast error
 ## ════════════════════════════════════════════════════════
-**ID:** P042
-**Type:** UX bug fix (state sync)
-**File:** app/page.tsx — useEffect
-**Commit:** fix: auto-sync replyLang when appLang changes (P042)
-
+**ID:** P021
+**Type:** TypeScript type fix
+**Commit:** afdb33f fix: add SEVERITY_STYLE const and fix TIER_STYLE type cast
 **Symptom:**
-  - User switches app to Ўзбек (uz_cyrillic)
-  - All UI labels show in Cyrillic ✅
-  - But analysis result comment shows in English ❌
-  - Story card (seerah_context) also in English ❌
-
-**Root cause:**
-  replyLang state defaults to 'en' and only changes when user explicitly
-  clicks EN/UZ/AR/RU reply buttons in the Analyze tab.
-  The analyze route uses replyLang (not appLang) as the lang param.
-  User expects switching the app language to also switch the reply language.
-
-**Fix:**
-  Add useEffect that maps appLang → replyLang whenever appLang changes:
-  useEffect(() => {
-    if (appLang === 'uz_latin' || appLang === 'uz_cyrillic') setReplyLang('uz')
-    else if (appLang === 'ru') setReplyLang('ru')
-    else if (appLang === 'ar') setReplyLang('ar')
-    else if (appLang === 'tj') setReplyLang('ru') // Tajik TTS fallback
-    else setReplyLang('en')
-  }, [appLang])
-
-**Status:** FIXED
-
-## ════════════════════════════════════════════════════════
-## PATTERN 43: Language/analysis tests timeout in CI — mock API
-## ════════════════════════════════════════════════════════
-**ID:** P043
-**Type:** Test architecture fix (CI reliability)
-**File:** tests/hadith-verifier.spec.ts
-**Commit:** fix: mock API in language tests — eliminate Claude latency in CI (P043)
-
-**Symptom:**
-  - Language switching tests and analysis flow tests fail in CI with
-    TimeoutError: waitForSelector timeout 110000ms exceeded
-  - Tests pass locally (faster machine, warmer connection)
-  - CI #125–#132 all failing on same tests despite increasing timeout
-
-**Root cause:**
-  Tests called real Claude API in CI. After adding seerah_context field,
-  Claude prompt is larger → responses take 20-35s in CI (shared runners
-  are slower than local). 110s timeout not sufficient when:
-    - GitHub Actions runner cold start
-    - Claude API under load
-    - seerah_context adds ~10s to response time
-  Wrong test design: language tests validate UI rendering, not Claude output.
-  Real API validation belongs in pytest suite.
-
-**Fix — page.route() mock pattern:**
-  async function mockAnalyze(page, lang) {
-    await page.route('**/api/analyze', route =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_RESPONSE(lang))
-      })
-    )
-  }
-  - Mock returns deterministic response with correct language text
-  - Tests run in ~2s instead of 110s
-  - Tests are deterministic — no Claude non-determinism
-  - Real API tests tagged @real-api, skipped in CI workflow
-  - Run real API tests manually: npx playwright test --grep @real-api
-
-**Separation of concerns:**
-  hadith-verifier.spec.ts  → UI rendering, language display (mocked)
-  test_analyze_api.py      → Real Claude output quality (pytest, prod)
-  @real-api tagged tests   → Manual validation against production
-
-**Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 44: Severity scoring tests call real Claude — non-deterministic
-## ════════════════════════════════════════════════════════
-**ID:** P044
-**Type:** Test architecture fix (same root cause as P043)
-**File:** tests/api.spec.ts — Severity scoring describe block
-**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
-
-**Symptom:**
-  - api.spec.ts:331 fails — CI #133
-  - Test: "chain message should produce CRITICAL or HIGH severity"
-  - Expected ['CRITICAL', 'HIGH'] to contain 'MEDIUM'
-  - Claude returned verdict='weak', confidence='medium' → MEDIUM severity
-
-**Root cause:**
-  getSeverity() is a DETERMINISTIC PURE FUNCTION:
-    getSeverity(verdict, confidence) → 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'
-  But the test called it through real Claude API. Claude's verdict for
-  chain messages is non-deterministic — sometimes 'fabricated' (HIGH),
-  sometimes 'weak' (MEDIUM). The test was testing Claude's classification
-  ability, not the severity function logic.
-  Same pattern as P043 — wrong test layer for the concern being tested.
-
-**The rule (ISTQB CT-AI, non-determinism):**
-  Test DETERMINISTIC logic with unit tests (no AI calls).
-  Test AI OUTPUT QUALITY with @real-api tagged tests (accept ranges).
-  NEVER assert exact AI classification outcomes in CI push tests.
+  - "Type 'string' is not assignable to type keyof typeof SEVERITY_STYLE"
 
 **Fix:**
 ```ts
-// WRONG — tests deterministic function through non-deterministic Claude:
-test('chain message should produce CRITICAL or HIGH', async ({ request }) => {
-  const res = await request.post(`${BASE_URL}/api/analyze`, { ... })
-  const body = await res.json()
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH']).toContain(severity)  // FLAKY
-})
+const SEVERITY_STYLE = {
+  CRITICAL: 'bg-red-100 text-red-800',
+  HIGH: 'bg-orange-100 text-orange-800',
+  MEDIUM: 'bg-yellow-100 text-yellow-800',
+  LOW: 'bg-green-100 text-green-800',
+} as const
 
-// RIGHT — test the function directly:
-test('fabricated + high → CRITICAL', () => {
-  expect(getSeverity('fabricated', 'high')).toBe('CRITICAL')
-})
-test('weak + medium → MEDIUM', () => {
-  expect(getSeverity('weak', 'medium')).toBe('MEDIUM')
-})
-
-// AND for real API — accept the full valid range:
-test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ request }) => {
-  const body = await analyze(...)
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH', 'MEDIUM']).toContain(severity)  // accepts non-determinism
-})
+const style = SEVERITY_STYLE[result.severity as keyof typeof SEVERITY_STYLE]
+  ?? SEVERITY_STYLE.LOW
 ```
-
-**Scope of fix:**
-  All 5 severity tests in api.spec.ts replaced with:
-  - 9 unit tests for getSeverity() function (instant, no API)
-  - 2 @real-api tests for real Claude verification (manual only)
-
 **Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 44: Severity scoring tests call real Claude — non-deterministic
-## ════════════════════════════════════════════════════════
-**ID:** P044
-**Type:** Test architecture fix (same root cause as P043)
-**File:** tests/api.spec.ts — Severity scoring describe block
-**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
 
+## ════════════════════════════════════════════════════════
+## PATTERN 22: CI server not started before Playwright tests
+## ════════════════════════════════════════════════════════
+**ID:** P022
+**Type:** CI/CD fix
+**Commit:** Fix CI - start server before running tests (Run #6)
 **Symptom:**
-  - api.spec.ts:331 fails — CI #133
-  - Test: "chain message should produce CRITICAL or HIGH severity"
-  - Expected ['CRITICAL', 'HIGH'] to contain 'MEDIUM'
-  - Claude returned verdict='weak', confidence='medium' → MEDIUM severity
+  - All tests fail: "net::ERR_CONNECTION_REFUSED"
 
-**Root cause:**
-  getSeverity() is a DETERMINISTIC PURE FUNCTION:
-    getSeverity(verdict, confidence) → 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'
-  But the test called it through real Claude API. Claude's verdict for
-  chain messages is non-deterministic — sometimes 'fabricated' (HIGH),
-  sometimes 'weak' (MEDIUM). The test was testing Claude's classification
-  ability, not the severity function logic.
-  Same pattern as P043 — wrong test layer for the concern being tested.
+**Fix — test against production URL in CI (preferred):**
+```yaml
+env:
+  BASE_URL: https://hadithverifier.com
+```
+**Status:** FIXED — CI tests against production URL
 
-**The rule (ISTQB CT-AI, non-determinism):**
-  Test DETERMINISTIC logic with unit tests (no AI calls).
-  Test AI OUTPUT QUALITY with @real-api tagged tests (accept ranges).
-  NEVER assert exact AI classification outcomes in CI push tests.
+## ════════════════════════════════════════════════════════
+## PATTERN 23: E2E button selector breaks on UI refactor
+## ════════════════════════════════════════════════════════
+**ID:** P023
+**Type:** Test fix (selector stability)
+**Commit:** Fix E2E tests - use specific button selectors (Run #7)
+**Symptom:**
+  - button.bg-emerald-700 not found after UI update
 
 **Fix:**
 ```ts
-// WRONG — tests deterministic function through non-deterministic Claude:
-test('chain message should produce CRITICAL or HIGH', async ({ request }) => {
-  const res = await request.post(`${BASE_URL}/api/analyze`, { ... })
-  const body = await res.json()
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH']).toContain(severity)  // FLAKY
-})
+// FRAGILE:
+await page.locator('button.bg-emerald-700').first().click()
+// STABLE:
+await page.getByRole('button', { name: /analyze post/i }).click()
+```
+**Status:** FIXED
 
-// RIGHT — test the function directly:
-test('fabricated + high → CRITICAL', () => {
-  expect(getSeverity('fabricated', 'high')).toBe('CRITICAL')
-})
-test('weak + medium → MEDIUM', () => {
-  expect(getSeverity('weak', 'medium')).toBe('MEDIUM')
-})
+## ════════════════════════════════════════════════════════
+## PATTERN 24: GitHub Actions 403 — not permitted to create PRs
+## ════════════════════════════════════════════════════════
+**ID:** P024
+**Type:** Infrastructure (GitHub Actions permissions)
+**Commit:** fix: correct workflow name in auto-fix trigger
+**Symptom:**
+  - Agent log: "GitHub Actions is not permitted to create or approve pull requests"
+  - Error: 403 on POST to /repos/{repo}/pulls
 
-// AND for real API — accept the full valid range:
-test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ request }) => {
-  const body = await analyze(...)
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH', 'MEDIUM']).toContain(severity)  // accepts non-determinism
+**Root cause:**
+  GitHub Actions workflow permissions default to read-only.
+
+**Fix:**
+  1. github.com/{repo} → Settings → Actions → General
+  2. Scroll to "Workflow permissions"
+  3. Select "Read and write permissions"
+  4. Check "Allow GitHub Actions to create and approve pull requests"
+  5. Click Save
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 25: workflow_run trigger name mismatch
+## ════════════════════════════════════════════════════════
+**ID:** P025
+**Type:** CI/CD fix (GitHub Actions)
+**Symptom:**
+  - Auto-Fix Agent never triggers after test failures
+  - No agent workflow run appears in Actions tab
+
+**Root cause:**
+  workflow_run trigger requires EXACT match of the workflow name.
+  auto-fix.yml had "Playwright Tests" but actual CI workflow is
+  named "Hadith Verifier CI/CD".
+
+**Fix in .github/workflows/auto-fix.yml:**
+```yaml
+on:
+  workflow_run:
+    workflows: ["Hadith Verifier CI/CD"]  # must match exactly
+    types: [completed]
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 26: NameError — self in standalone Python function
+## ════════════════════════════════════════════════════════
+**ID:** P026
+**Type:** Python agent fix
+**Symptom:**
+  - Agent log: "NameError: name 'self' is not defined"
+
+**Root cause:**
+  Function defined with self parameter but called as standalone (no class instance).
+
+**Fix — remove self from all standalone functions:**
+```python
+# WRONG:
+def get_failed_annotations(self, run_id: str) -> list[dict]:
+# RIGHT:
+def get_failed_annotations(run_id: str) -> list:
+```
+  Do NOT use class structure in playwright_agent.py — standalone functions only.
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 27: Deprecated model warning — claude-sonnet-4-20250514
+## ════════════════════════════════════════════════════════
+**ID:** P027
+**Type:** Infrastructure (model version)
+**Symptom:**
+  - "DeprecationWarning: model 'claude-sonnet-4-20250514' reaches
+    end-of-life June 15, 2026"
+
+**Fix in agents/playwright_agent.py:**
+```python
+MODEL = "claude-sonnet-4-6"
+```
+**Fix in app/api/analyze/route.ts:**
+```ts
+model: 'claude-sonnet-4-6',
+```
+**Status:** PENDING — update before June 15, 2026
+
+## ════════════════════════════════════════════════════════
+## PATTERN 28: GitHub annotations 404 — wrong endpoint
+## ════════════════════════════════════════════════════════
+**ID:** P028
+**Type:** Python agent fix
+**Symptom:**
+  - "HTTPError: 404 Not Found: .../actions/runs/{id}/annotations"
+
+**Root cause:**
+  Annotations live on check-run jobs, not directly on the workflow run.
+
+**Fix:**
+```python
+def get_failed_annotations(run_id: str) -> list:
+    jobs_url = f"{GITHUB_API}/repos/{REPO}/actions/runs/{run_id}/jobs"
+    jobs = requests.get(jobs_url, headers=get_headers()).json().get("jobs", [])
+    annotations = []
+    for job in jobs:
+        ann_url = f"{GITHUB_API}/repos/{REPO}/check-runs/{job['id']}/annotations"
+        ann_response = requests.get(ann_url, headers=get_headers())
+        if ann_response.status_code == 200:
+            failed = [a for a in ann_response.json()
+                     if a.get("annotation_level") == "failure"]
+            annotations.extend(failed)
+    return annotations
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 29: UZ lang test — claim_summary Cyrillic assertion too strict
+## ════════════════════════════════════════════════════════
+**ID:** P029
+**Type:** Test fix (AI non-determinism)
+**Commit:** fix: relax UZ lang test — remove claim_summary Cyrillic assertion
+**Symptom:**
+  - tests/api.spec.ts:182 — UZ lang test on Chromium FAILED
+  - expect(/[\u0400-\u04FF]/.test(claim)).toBe(true) → false
+  - claim_summary returned in English even with lang='uz'
+
+**Root cause:**
+  Claude generates claim_summary from the post content language, not the lang param.
+  If input post (FABRICATED_POSTS.chain_message) is in English, claim_summary
+  stays in English even when lang='uz'. Only suggested_comment and analysis
+  reliably reflect the lang setting.
+
+**Fix — drop claim_summary assertion, add Cyrillic fallback to comment check:**
+```ts
+// WRONG — too strict:
+expect(/[\u0400-\u04FF]/.test(claim)).toBe(true)
+
+// RIGHT — check comment OR Cyrillic, drop claim_summary:
+const hasUzbekComment =
+  comment.includes('assalomu') || comment.includes('alaykum') ||
+  comment.includes('alloh')   || comment.includes('hadis')   ||
+  comment.includes('rivoyat') || comment.includes('sahih')   ||
+  /[\u0400-\u04FF]/.test(comment)  // Cyrillic fallback
+
+expect(hasUzbekComment).toBe(true)
+// NOTE: claim_summary NOT asserted — may be English when input post is English
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 30: EN lang test — Arabic script false negative
+## ════════════════════════════════════════════════════════
+**ID:** P030
+**Type:** Test fix (AI behavior — expected, not a bug)
+**Commit:** fix: remove EN Arabic assertion in analysis — Arabic source titles expected
+**Symptom:**
+  - tests/api.spec.ts:218 — EN lang test flaky on Chromium
+  - expect(/[\u0600-\u06FF]/.test(body.analysis)).toBe(false) → fails intermittently
+
+**Root cause:**
+  Claude correctly cites Arabic source titles (e.g. صحيح البخاري = Sahih Al-Bukhari)
+  inside English analysis. This is accurate scholarly behavior, not a language leak.
+  The assertion was wrong, not the model output.
+
+**Fix — remove Arabic-in-analysis assertion entirely:**
+```ts
+// WRONG — Arabic source titles appear naturally in EN analysis:
+expect(/[\u0600-\u06FF]/.test(body.analysis || '')).toBe(false)
+
+// RIGHT — only assert suggested_comment is in English:
+const hasEnglishComment =
+  comment.includes('assalamu') || comment.includes('narration') ||
+  comment.includes('fabricated') || comment.includes('authentic') ||
+  comment.includes('reference')  || comment.includes('hadith')
+expect(hasEnglishComment).toBe(true)
+// NOTE: Arabic in analysis is CORRECT — do not assert against it
+```
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 31: CI job cancelled — exceeded execution time limit
+## ════════════════════════════════════════════════════════
+**ID:** P031
+**Type:** CI/CD fix
+**Commit:** fix: test against production URL, remove local build from CI, add --workers=1
+**Symptom:**
+  - "The job has exceeded the maximum execution time of 30m0s"
+  - "The operation was canceled"
+  - CI run #83 cancelled at 30m 16s — no test assertion failures at all
+
+**Root cause:**
+  3 compounding issues:
+  1. timeout-minutes was 30 — too low for AI-calling test suites
+  2. CI was building Next.js locally (~5-8 min wasted) + serving on localhost
+     instead of testing the already-deployed production app on Vercel
+  3. No --workers=1 — Playwright spawned parallel workers hammering
+     Claude API simultaneously, slowing all responses
+
+**Fix applied to:** .github/workflows/ci.yml
+**Fix:**
+```yaml
+# 1. Raise timeout
+timeout-minutes: 55
+
+# 2. Remove these steps entirely (saves 8-10 min per run):
+#    - Create .env.local
+#    - Build Next.js app
+#    - Start Next.js server
+#    - Wait for server to be ready
+
+# 3. Test production URL directly
+- name: Run API tests
+  run: npx playwright test tests/api.spec.ts --reporter=list --workers=1
+  env:
+    BASE_URL: https://hadithverifier.com
+
+- name: Run E2E tests
+  run: npx playwright test tests/hadith-verifier.spec.ts --reporter=list --workers=1
+  env:
+    BASE_URL: https://hadithverifier.com
+```
+**Key learning:** For AI-calling test suites always calculate:
+  total time = (avg API latency × test count) + build overhead
+  Testing production URL eliminates build time entirely.
+  --workers=1 prevents Claude API rate limiting from parallel calls.
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 32: No rate limiting — open API burns budget
+## ════════════════════════════════════════════════════════
+**ID:** P032
+**Type:** route.ts fix (app/api/analyze/route.ts)
+**Symptom:**
+  - Every user visit triggers Claude API call with no limit
+  - Monthly bill grows unbounded if app goes viral
+  - No 429 responses ever returned
+
+**Root cause:**
+  Route had security (sanitizeInput, validateOutput) but
+  zero rate limiting. 1.5K real users already hitting API
+  with no daily cap.
+
+**Fix — 3 locations in route.ts:**
+
+**1. After imports, before anthropic const:**
+```ts
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT = 100
+const RATE_WINDOW_MS = 24 * 60 * 60 * 1000
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetInHours: number } {
+  const now = Date.now()
+  const record = rateLimitMap.get(ip)
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW_MS })
+    return { allowed: true, remaining: RATE_LIMIT - 1, resetInHours: 24 }
+  }
+  if (record.count >= RATE_LIMIT) {
+    const resetInHours = Math.ceil((record.resetTime - now) / 3600000)
+    return { allowed: false, remaining: 0, resetInHours }
+  }
+  record.count++
+  return { allowed: true, remaining: RATE_LIMIT - record.count, resetInHours: 24 }
+}
+```
+
+**2. After sanitizeInput block — rate limit check + 429:**
+```ts
+const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+           req.headers.get('x-real-ip') || 'unknown'
+const { allowed, remaining, resetInHours } = checkRateLimit(ip)
+if (!allowed) {
+  return NextResponse.json({
+    error: 'Daily limit reached',
+    message_en: `JazakAllahu khayran! You have used your ${RATE_LIMIT} free daily verifications. Return in ${resetInHours} hour(s). 🤲`,
+    message_uz: `JazakAllahu xayran! ${RATE_LIMIT} ta kunlik limitingiz tugadi. ${resetInHours} soatdan keyin keling. 🤲`,
+    message_ar: `جزاكم الله خيراً! استخدمت ${RATE_LIMIT} فحصاً. عُد خلال ${resetInHours} ساعة. 🤲`,
+    message_ru: `ДжазакАллаху хайран! Лимит ${RATE_LIMIT} проверок исчерпан. Вернитесь через ${resetInHours} ч. 🤲`,
+    remaining: 0,
+    resetInHours
+  }, { status: 429, headers: { 'Retry-After': String(resetInHours * 3600) }})
+}
+```
+
+**3. Final return — add rate limit headers:**
+```ts
+return NextResponse.json(result, {
+  headers: {
+    'X-RateLimit-Limit': String(RATE_LIMIT),
+    'X-RateLimit-Remaining': String(remaining),
+  }
 })
 ```
 
-**Scope of fix:**
-  All 5 severity tests in api.spec.ts replaced with:
-  - 9 unit tests for getSeverity() function (instant, no API)
-  - 2 @real-api tests for real Claude verification (manual only)
+**Test: api_spec.ts — new describe block:**
+```ts
+test.describe('Rate limiting', () => {
+  test('should include rate limit headers', async ({ request }) => { ... })
+  test('429 should have kind multilingual message', async ({ request }) => {
+    test.skip(!!process.env.CI, 'Skipped in CI — rate limit simulation')
+    ...
+  })
+})
+```
+**Status:** FIXED — April 2026
+**Key learning:** Security layer existed but no cost protection.
+  100/day per IP = generous for real users, blocks abuse.
+  In-memory Map resets on Vercel cold start — acceptable for
+  this use case. For stricter limits use Vercel KV.
+  fix: add Tajik language to rate limit message.
 
-**Status:** FIXED
 ## ════════════════════════════════════════════════════════
-## PATTERN 44: Severity scoring tests call real Claude — non-deterministic
+## PATTERN 33: E2E test — waitForSelector ready-to-post never found
 ## ════════════════════════════════════════════════════════
-**ID:** P044
-**Type:** Test architecture fix (same root cause as P043)
-**File:** tests/api.spec.ts — Severity scoring describe block
-**Commit:** fix: unit test getSeverity() directly, tag real Claude severity @real-api (P044)
-
+**ID:** P033
+**Type:** Test fix (wrong selector)
+**Commit:** fix: replace ready-to-post selector with result container check
 **Symptom:**
-  - api.spec.ts:331 fails — CI #133
-  - Test: "chain message should produce CRITICAL or HIGH severity"
-  - Expected ['CRITICAL', 'HIGH'] to contain 'MEDIUM'
-  - Claude returned verdict='weak', confidence='medium' → MEDIUM severity
+  - TimeoutError: page.waitForSelector('text=/ready-to-post/i') timeout 60000ms
+  - UZ and AR language E2E tests fail
 
 **Root cause:**
-  getSeverity() is a DETERMINISTIC PURE FUNCTION:
-    getSeverity(verdict, confidence) → 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'
-  But the test called it through real Claude API. Claude's verdict for
-  chain messages is non-deterministic — sometimes 'fabricated' (HIGH),
-  sometimes 'weak' (MEDIUM). The test was testing Claude's classification
-  ability, not the severity function logic.
-  Same pattern as P043 — wrong test layer for the concern being tested.
-
-**The rule (ISTQB CT-AI, non-determinism):**
-  Test DETERMINISTIC logic with unit tests (no AI calls).
-  Test AI OUTPUT QUALITY with @real-api tagged tests (accept ranges).
-  NEVER assert exact AI classification outcomes in CI push tests.
+  'ready-to-post' text does not exist anywhere in page.tsx UI.
+  Result renders in .bg-gray-50.rounded-lg div via result.suggested_comment.
 
 **Fix:**
 ```ts
-// WRONG — tests deterministic function through non-deterministic Claude:
-test('chain message should produce CRITICAL or HIGH', async ({ request }) => {
-  const res = await request.post(`${BASE_URL}/api/analyze`, { ... })
-  const body = await res.json()
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH']).toContain(severity)  // FLAKY
-})
+// WRONG — text never appears in UI:
+await page.waitForSelector('text=/ready-to-post/i', { timeout: 60000 })
 
-// RIGHT — test the function directly:
-test('fabricated + high → CRITICAL', () => {
-  expect(getSeverity('fabricated', 'high')).toBe('CRITICAL')
-})
-test('weak + medium → MEDIUM', () => {
-  expect(getSeverity('weak', 'medium')).toBe('MEDIUM')
-})
-
-// AND for real API — accept the full valid range:
-test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ request }) => {
-  const body = await analyze(...)
-  const severity = getSeverity(body.verdict, body.confidence)
-  expect(['CRITICAL', 'HIGH', 'MEDIUM']).toContain(severity)  // accepts non-determinism
-})
+// RIGHT — wait for result container with content:
+await page.waitForSelector('.bg-gray-50.rounded-lg', { timeout: 90000 })
+await page.waitForFunction(
+  () => document.querySelector('.bg-gray-50.rounded-lg')?.textContent?.trim().length ?? 0 > 20,
+  { timeout: 90000 }
+)
 ```
-
-**Scope of fix:**
-  All 5 severity tests in api.spec.ts replaced with:
-  - 9 unit tests for getSeverity() function (instant, no API)
-  - 2 @real-api tests for real Claude verification (manual only)
-
 **Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 45: audit_spec.ts runs in CI — 14 real Claude calls, all flaky
-## ════════════════════════════════════════════════════════
-**ID:** P045
-**Type:** Test architecture fix (CI exclusion)
-**File:** playwright.config.ts
-**Commit:** fix: exclude audit_spec from CI push — post-deploy only (P045)
 
+## ════════════════════════════════════════════════════════
+## PATTERN 34: Copy button test — wrong label selector
+## ════════════════════════════════════════════════════════
+**ID:** P034
+**Type:** Test fix (wrong selector)
+**Commit:** fix: use class selector for copy button, skip stats counter test
 **Symptom:**
-  - audit_spec.ts: 14 failed in CI #135
-  - Failures: Islamic greeting (EN/RU/TJ), prompt injection (5 payloads),
-    content safety, language compliance (AR/RU), language audit (UZ)
-  - All calling real Claude API in CI
+  - expect(locator).toBeVisible() failed
+  - Locator: getByRole('button', { name: /copy comment/i })
+  - Element not found — button exists but label text doesn't match
 
 **Root cause:**
-  audit_spec.ts is a POST-DEPLOY audit tool, not a CI push test.
-  It calls real Claude API for:
-    - Greeting compliance: 5 languages × real Claude = 5 calls
-    - Prompt injection: 5 payloads × real Claude = 5 calls
-    - Language compliance: 3 languages × real Claude = 3 calls
-    - Content safety: 1 real Claude call
-  Total: 14+ real Claude API calls per CI run.
-  All non-deterministic. Claude sometimes responds in wrong language,
-  sometimes greeting varies, sometimes injection resistance varies.
-  This was ALWAYS a post-deploy audit tool — it was NEVER meant for CI.
+  CopyButton component renders label from tr.copyComment translation key.
+  Actual rendered text depends on appLang — may not match /copy comment/i regex.
+  getByRole with name regex is fragile for translated UI components.
 
-**Fix:**
-  Exclude audit_spec.ts from CI runs via playwright.config.ts:
-  testIgnore: IS_CI ? ['**/audit_spec.ts'] : []
+**Fix — use CSS class selector instead of label text:**
+```ts
+// WRONG — fragile, depends on translation:
+await expect(page.getByRole('button', { name: /copy comment/i })).toBeVisible()
 
-  Also: disable Firefox in CI (doubles run time, same failures):
-  projects: IS_CI ? [chromium only] : [chromium + firefox]
+// RIGHT — stable, class doesn't change with language:
+await expect(page.locator('button.border-emerald-300').first()).toBeVisible()
+```
 
-**How to run audit_spec manually (post-deploy):**
-  # Against production:
-  $env:BASE_URL="https://hadithverifier.com"
-  npx playwright test tests/audit_spec.ts --reporter=list
-
-  # Against localhost:
-  npx playwright test tests/audit_spec.ts
-
-**Rule going forward:**
-  Any test file that calls real Claude/ElevenLabs/Remotion must be
-  excluded from CI via testIgnore OR grep pattern.
-  The CI workflow should only run tests that complete in <5 minutes.
-
+**Rule:** Never use translated label text in selectors.
+  Use CSS classes, data-testid, or aria-label attributes instead.
 **Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 45 (updated): audit + language-speech in CI yml
-## ════════════════════════════════════════════════════════
-**ID:** P045
-**Type:** CI architecture fix
-**File:** .github/workflows/ci.yml
-**Commit:** fix: remove audit + language-speech from CI push workflow (P045)
 
+## ════════════════════════════════════════════════════════
+## PATTERN 35: Image upload parse error — token truncation + untested path
+## ════════════════════════════════════════════════════════
+**ID:** P035
+**Type:** Source fix (route.ts) + Test gap
+**Commit:** fix: increase max_tokens to 3000 for image path, shorten jsonTemplate (P032b)
 **Symptom:**
-  - CI #135, #136: 18 failed audit tests — real Claude calls in CI
-  - "No tests found" locally for audit_spec.ts
-  - language-speech.spec.ts also calls real ElevenLabs in CI
+  - Parse error dialog appears on hadithverifier.com when uploading screenshot
+  - Vercel logs: POST /api/analyze → 500, execution 49s, only Anthropic API called
+  - No Supabase call — parse fails before save
+  - CI never catches it — no image upload test exists
 
-**Root cause 1 — filename mismatch:**
-  CI yml calls: tests/audit.spec.ts (dot)
-  Actual file:  tests/audit_spec.ts (underscore)
-  → "No tests found" error locally when using dot version
+**Root cause:**
+  Two compounding issues:
+  1. Image path requires extracting ALL visible text + analysis = more tokens
+     max_tokens: 2048 too low for image responses → JSON truncated mid-string
+  2. CI test suite uses text input only — image code path never exercised in CI
+     Agent cannot detect what CI never tests
 
-**Root cause 2 — wrong yml architecture:**
-  playwright.config.ts testIgnore does NOT work when CI yml
-  calls specific file paths directly with:
-    npx playwright test tests/audit.spec.ts
-  The yml bypasses playwright.config.ts testIgnore entirely.
-  The ONLY fix is to remove the step from ci.yml.
+**Fix 1 — increase max_tokens for image path in route.ts:**
+```ts
+// WRONG:
+max_tokens: 2048,
 
-**Root cause 3 — real API calls in CI:**
-  audit_spec.ts: 18 real Claude calls (greeting×5, injection×5, safety, language×3...)
-  language-speech.spec.ts: real ElevenLabs calls
-  All non-deterministic → always flaky in CI
+// RIGHT — image needs more tokens for text extraction + analysis:
+max_tokens: imageBase64 ? 3000 : 2048,
+```
+
+**Fix 2 — shorten jsonTemplate to reduce output size:**
+```ts
+// Remove verbose descriptions from template references
+// Shorter template = less tokens consumed = less truncation risk
+```
+
+**Fix 3 — add image path to CI test suite (P035 prevention):**
+```ts
+// TODO: add tests/image-upload.spec.ts
+// Use 1x1 pixel base64 PNG to exercise image code path in CI
+// Agent can only fix what CI tests cover
+```
+
+**Key learning:** The Auto-Fix Agent only catches failures that appear as
+  GitHub Actions test annotations. Runtime errors on production (Vercel 500s)
+  are invisible to the agent. Every production code path needs a CI test.
+  Image upload had no CI test → agent blind to image parse errors.
+
+**Status:** PARTIALLY FIXED — max_tokens increased, image CI test still TODO
+
+## ════════════════════════════════════════════════════════
+## PATTERN 36: Audit UZ greeting check — too narrow indicators
+## ════════════════════════════════════════════════════════
+**ID:** P036
+**Type:** Test fix (AI non-determinism)
+**Commit:** fix: expand UZ greeting indicators in audit.spec.ts
+**Symptom:**
+  - audit.spec.ts:184 — UZ greeting test fails
+  - "Expected uz comment to start with Islamic greeting"
+  - Claude uses Hurmatli/Муҳтарам instead of Assalomu
+
+**Root cause:**
+  GREETING_INDICATORS for uz only had 3 variants.
+  Claude legitimately uses other Islamic/respectful greetings
+  in Uzbek (Hurmatli, Муҳтарам, Азиз) that are culturally valid.
+
+**Fix:** Expand GREETING_INDICATORS to include all valid UZ greetings.
+
+**Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 37: Another app running on port 3000
+## ════════════════════════════════════════════════════════
+**ID:** P037
+**Type:** Developer environment (Windows)
+**Symptom:**
+  - "Port 3000 is already in use"
+  - npm run dev fails to start
 
 **Fix:**
-  1. Remove "Run Audit tests" step from ci.yml push trigger
-  2. Remove "Run language + speech tests" step from ci.yml push trigger
-  3. Add workflow_dispatch trigger with run_audit input
-  4. Move audit to separate job that only runs on manual dispatch
-  5. Reduce timeout-minutes from 55 → 20 (push CI should be fast)
+```powershell
+npm run dev -- -p 3001
+# Or permanently in package.json:
+"dev": "next dev -p 3001"
+```
+**Status:** DOCUMENTED
 
-**How to run audit manually:**
-  Option A — PowerShell:
-    $env:BASE_URL="https://hadithverifier.com"
-    npx playwright test tests/audit_spec.ts --reporter=list
-
-  Option B — GitHub Actions manual trigger:
-    GitHub → Actions → Hadith Verifier CI/CD → Run workflow → run_audit=true
-
-**File naming rule going forward:**
-  Use underscores consistently: audit_spec.ts, api_spec.ts
-  Never mix dots and underscores in spec file names
-
-**Status:** FIXED
 ## ════════════════════════════════════════════════════════
-## PATTERN 58: TJ missing from ReplyLang + UZ reads as Latin
+## PATTERN 38: Window.gtag / dataLayer TypeScript TS2339
 ## ════════════════════════════════════════════════════════
-**ID:** P058
-**Type:** Bug fix (language support + BCP-47 codes)
-**Files:** page.tsx, components/TTSPlayer.tsx
-**Commit:** fix: add TJ to ReplyLang, fix UZ BCP-47 code for browser TTS (P058)
+**ID:** P038
+**Type:** TypeScript fix
+**File:** tests/analytics.spec.ts
+**Symptom:**
+  - TS2339: Property 'gtag' does not exist on type 'Window & typeof globalThis'
+  - TS2339: Property 'dataLayer' does not exist on type 'Window & typeof globalThis'
+  - npx tsc --noEmit shows 6 errors all in analytics.spec.ts
 
-**Symptom 1 — TJ missing:**
-  Tajik language button not visible in reply language selector.
-  type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' — TJ not included.
+**Root cause:**
+  Google Analytics adds gtag() and dataLayer[] to window at runtime
+  but TypeScript doesn't know about them without a type declaration.
 
-**Symptom 2 — UZ Cyrillic reads as Latin:**
-  User selects UZ reply language → TTSPlayer → browser SpeechSynthesis
-  reads Cyrillic text in English phonetics (Latin-like sound).
-  Root cause: SpeechSynthesisUtterance.lang = 'uz' — not a valid BCP-47 code.
-  Browser falls back to default voice (English) → reads Cyrillic as English.
-
-**Fix 1 — Add TJ to ReplyLang:**
-  type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' | 'tj'
-  Add 'tj' to reply buttons array.
-  Update useEffect sync: appLang === 'tj' → setReplyLang('tj') (was 'ru')
-
-**Fix 2 — BCP-47 language codes in TTSPlayer:**
-  // WRONG — 'uz' not recognized by browser:
-  utt.lang = lang  // 'uz' → browser defaults to English
-
-  // RIGHT — full BCP-47 codes:
-  const BROWSER_LANG_CODE = {
-    en: 'en-US',
-    uz: 'uz-UZ',   // ← was missing, caused Latin reading of Cyrillic
-    ar: 'ar-SA',
-    ru: 'ru-RU',
-    tj: 'ru-RU',   // TJ fallback (no native TJ TTS voice)
+**Fix — add at top of analytics.spec.ts before imports:**
+```typescript
+declare global {
+  interface Window {
+    gtag: (...args: any[]) => void
+    dataLayer: any[]
   }
-  utt.lang = BROWSER_LANG_CODE[lang] || 'en-US'
+}
+```
+**Status:** FIXED — May 2026
 
-**Note on UZ Cyrillic TTS:**
-  Even with 'uz-UZ', browser support is limited. Most browsers don't have
-  a native Uzbek voice. ElevenLabs (primary path) handles UZ correctly
-  via multilingual model. Browser fallback sounds Russian — acceptable.
-
-**Status:** FIXED
 ## ════════════════════════════════════════════════════════
-## PATTERN 59: TTS reads URLs, bullets, special chars literally
+## PATTERN 39: Vercel CLI — Development env var error
 ## ════════════════════════════════════════════════════════
-**ID:** P059
-**Type:** UX bug fix (TTS text preprocessing)
-**File:** components/TTSPlayer.tsx
-**Commit:** fix: sanitize text before TTS — remove URLs bullets special chars (P059)
+**ID:** P039
+**Type:** Infrastructure (Vercel CLI)
+**Symptom:**
+  - "Development cannot be combined with other Environments"
+  - vercel env ls shows "No Environment Variables found"
 
-**Symptoms:**
-  1. "Listen to analysis" says: "slash slash sunnah dot com bukhari colon 8"
-     Root cause: URL https://sunnah.com/bukhari:8 passed raw to TTS
-  2. UZ "Listen to comment" says: "dot dot dot" for highlighted blocks
-     Root cause: ◆ bullet characters passed raw to TTS
-  3. TJ/UZ numbers read in Russian accent
-     Root cause: ElevenLabs multilingual defaults to Russian for digits
-     in Cyrillic context — acceptable behavior, not fixable without
-     custom pronunciation dictionary
+**Root cause:**
+  Vercel CLI does not allow adding sensitive vars to Development
+  alongside Production/Preview in one command.
 
-**Fix — sanitizeForTTS() function:**
-  Applied BEFORE sending text to ElevenLabs AND browser SpeechSynthesis:
-  1. Remove URLs: https://... → ''
-  2. Remove bullet chars: ◆ ♦ • · → ''
-  3. Remove hadith refs: #1234, bukhari:8 → ''
-  4. Remove markdown: **bold** → bold
-  5. Remove tier labels: [tier1] → ''
-  6. Normalize whitespace
-
-**Code:**
-  function sanitizeForTTS(text: string): string {
-    return text
-      .replace(/https?:\/\/[^\s,)،]+/g, '')   // URLs
-      .replace(/[◆♦•·‣▪▸►]/g, '')              // bullets
-      .replace(/#\d+/g, '')                     // #1234 refs
-      .replace(/\w+:\d+/g, '')                  // bukhari:8 refs
-      .replace(/\*\*([^*]+)\*\*/g, '$1')        // **bold**
-      .replace(/\[tier\d\]/gi, '')               // [tier1]
-      .trim()
-  }
-
-**Numbers in TJ/UZ:**
-  ElevenLabs multilingual v2 reads digits in the dominant language
-  of surrounding text. In Cyrillic context → Russian phonetics.
-  This is expected ElevenLabs behavior. To fix properly requires
-  spelling out numbers in words before TTS (Phase 4 enhancement).
-
-**Status:** FIXED
-# ============================================================
-# DOCUMENTATION UPDATE — May 2026
-# Covers: P040–P059, CI #122–144, pre-push hooks, TJ support
-# Paste each section into the appropriate file
-# ============================================================
-
-# ════════════════════════════════════════════════════════════
-# FILE 1: Append to fix_patterns.md
-# ════════════════════════════════════════════════════════════
+**Fix — add to each environment separately:**
+```powershell
+vercel env add KEY_NAME production
+vercel env add KEY_NAME preview
+# Development reads from .env.local automatically
+```
+**Status:** DOCUMENTED — May 2026
 
 ## ════════════════════════════════════════════════════════
 ## PATTERN 40: Timeout too short after seerah_context added
@@ -884,93 +1283,6 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   - First enforced push: CI #144 ✅ green
 **Rule:** NEVER git push without local tests passing first
 **Bypass (doc-only commits):** git push --no-verify
-## ════════════════════════════════════════════════════════
-## PATTERN 61: TTS route required voiceId — TTSPlayer sends lang only
-## ════════════════════════════════════════════════════════
-**ID:** P061
-**Type:** Bug fix (API contract mismatch)
-**File:** app/api/tts/route.ts
-**Commit:** fix: TTS route maps lang→voiceId internally, sanitizes text (P061)
-
-**Symptom:**
-  - AR language: all 3 Listen buttons silent — 400 Bad Request
-  - UZ/TJ: Listen to comment reads URLs (new TTSPlayer never deployed)
-  - PowerShell test: (400) Bad Request when sending lang without voiceId
-
-**Root cause:**
-  Old /api/tts route required { text, voiceId } in request body.
-  New TTSPlayer.tsx sends { text, lang } — no voiceId.
-  Route returned 400 "text and voiceId are required" for every request
-  that used the new TTSPlayer. Browser fell back to SpeechSynthesis for
-  RU/EN (which has voices) but AR has no browser voice → silent.
-  This also means the new sanitizeForTTS() in TTSPlayer was never
-  reaching ElevenLabs — it was always going to browser fallback.
-
-**Fix:**
-  Route now accepts { text, lang } OR { text, voiceId } (legacy).
-  Internal VOICE_MAP maps lang → voiceId:
-    ar → ELEVENLABS_VOICE_AR (Hijazi)
-    ru → ELEVENLABS_VOICE_RU (Abrar Sabbah)
-    uz → ELEVENLABS_VOICE_UZ (Abrar Sabbah)
-    tj → ELEVENLABS_VOICE_TJ (Abrar Sabbah)
-    en → ELEVENLABS_VOICE_EN (default)
-
-  Text sanitization also moved to route (server-side):
-    Strips URLs, bullets, refs before sending to ElevenLabs.
-    More reliable than client-side only.
-
-**Add to Vercel env vars (optional — defaults work):**
-  ELEVENLABS_VOICE_AR=<Hijazi voice ID>
-  ELEVENLABS_VOICE_RU=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_UZ=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_TJ=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_EN=<EN voice ID>
-
-**Status:** FIXED
-## ════════════════════════════════════════════════════════
-## PATTERN 61: TTS route required voiceId — TTSPlayer sends lang only
-## ════════════════════════════════════════════════════════
-**ID:** P061
-**Type:** Bug fix (API contract mismatch)
-**File:** app/api/tts/route.ts
-**Commit:** fix: TTS route maps lang→voiceId internally, sanitizes text (P061)
-
-**Symptom:**
-  - AR language: all 3 Listen buttons silent — 400 Bad Request
-  - UZ/TJ: Listen to comment reads URLs (new TTSPlayer never deployed)
-  - PowerShell test: (400) Bad Request when sending lang without voiceId
-
-**Root cause:**
-  Old /api/tts route required { text, voiceId } in request body.
-  New TTSPlayer.tsx sends { text, lang } — no voiceId.
-  Route returned 400 "text and voiceId are required" for every request
-  that used the new TTSPlayer. Browser fell back to SpeechSynthesis for
-  RU/EN (which has voices) but AR has no browser voice → silent.
-  This also means the new sanitizeForTTS() in TTSPlayer was never
-  reaching ElevenLabs — it was always going to browser fallback.
-
-**Fix:**
-  Route now accepts { text, lang } OR { text, voiceId } (legacy).
-  Internal VOICE_MAP maps lang → voiceId:
-    ar → ELEVENLABS_VOICE_AR (Hijazi)
-    ru → ELEVENLABS_VOICE_RU (Abrar Sabbah)
-    uz → ELEVENLABS_VOICE_UZ (Abrar Sabbah)
-    tj → ELEVENLABS_VOICE_TJ (Abrar Sabbah)
-    en → ELEVENLABS_VOICE_EN (default)
-
-  Text sanitization also moved to route (server-side):
-    Strips URLs, bullets, refs before sending to ElevenLabs.
-    More reliable than client-side only.
-
-**Add to Vercel env vars (optional — defaults work):**
-  ELEVENLABS_VOICE_AR=<Hijazi voice ID>
-  ELEVENLABS_VOICE_RU=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_UZ=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_TJ=<Abrar Sabbah voice ID>
-  ELEVENLABS_VOICE_EN=<EN voice ID>
-
-**Status:** FIXED
-# Append to fix_patterns.md
 
 ## ════════════════════════════════════════════════════════
 ## PATTERN 60: AI quality tests assert specific Claude verdict — non-deterministic
@@ -1028,3 +1340,119 @@ test('@real-api chain message should produce CRITICAL HIGH or MEDIUM', async ({ 
   Pre-push #1 catch: AI quality tests blocked (P060) ✅
   CI #148: TTS route fix ✅
   CI #149: tts.spec.ts + smart hook v3 ✅
+
+## ════════════════════════════════════════════════════════
+## PATTERN 78: Whisper STT produces Latin transliteration for UZ/TJ — q→k drift
+## ════════════════════════════════════════════════════════
+**ID:** P078 (cross-project — primary discovery in HR, applicable to HV)
+**Type:** STT/pipeline limitation (forward-looking)
+**Project:** hadith-verifier (originally discovered in hadith-reels)
+**Files potentially affected (future):**
+  - app/api/tts/route.ts — currently TTS-only (ElevenLabs out, no STT in)
+  - Any future audio-input feature (voice-paste hadith analysis, etc.)
+  - Future Listen-to-comment reverse verification (transcribe audio reply)
+**First observed:** May 15, 2026 — during HR TJ adults reel render
+**Discovered during:** Pre-Hajj reel production session (HR project)
+
+**Why log in HV:**
+  HV currently has no STT pipeline, but planned features include:
+  1. Voice-input mode (paste hadith via audio recording)
+  2. Reverse audio verification (transcribe Listen-to-comment output for QA)
+  3. Audio attachment analysis (WhatsApp voice notes claiming hadiths)
+
+  When any of these ships, this exact bug will reappear. Log it now so
+  the future implementer doesn't re-discover it from scratch.
+
+**Symptom (as observed in HR, will reproduce in HV):**
+  Whisper STT on Cyrillic-language audio (UZ Cyrillic, TJ Cyrillic) outputs:
+  1. Latin transliteration instead of Cyrillic script
+     - "Расул" → "Rasul"
+     - "Паёмбар" → "Payambar"
+  2. Q→K consonant drift (loses phonemic distinction)
+     - "қабул" → "kabul"
+     - "Қуръон" → "Kuran"
+  3. Output unreadable to Cyrillic-script native readers
+
+**Root cause (same as HR P078):**
+  Whisper training corpus for TJ/UZ dominated by Latin transliteration sources.
+  Tokenizer collapses /q/ and /k/ phoneme distinction in Turkic contexts.
+
+**Mitigation strategy for HV (when STT features are added):**
+
+  Preferred — Claude STT instead of Whisper:
+    Send audio directly to Claude Sonnet with explicit script instruction:
+    ```
+    "Transcribe this audio in [Tajik|Uzbek] Cyrillic script only.
+     Use Cyrillic characters Ҳ, Ҷ, Қ, Ғ, Ӯ.
+     Do NOT use Latin transliteration."
+    ```
+    Pros: better script-following, single API surface (already use Claude
+    for /api/analyze), no separate Whisper integration needed.
+    Cons: higher cost than Whisper, slower latency.
+
+  Fallback — Whisper + Latin→Cyrillic post-processor:
+    Use existing libraries:
+    - npm: uzbek-latin-cyrillic
+    - python: uzbek-translit
+    For TJ: hand-built mapping table required (no mature library yet).
+
+**Test pattern (when STT lands in HV):**
+  Add to api.spec.ts or new audio.spec.ts:
+  ```typescript
+  test('STT output for UZ Cyrillic audio uses Cyrillic script only', async () => {
+    const res = await ctx.post(`${BASE_URL}/api/stt`, {
+      data: { audioBase64: UZ_CYRILLIC_FIXTURE, lang: 'uz' }
+    })
+    const body = await res.json()
+    const transcript = body.transcript || ''
+    // Must contain Cyrillic
+    expect(/[\u0400-\u04FF]/.test(transcript)).toBe(true)
+    // Must NOT contain Latin letters
+    expect(/[a-zA-Z]/.test(transcript)).toBe(false)
+  })
+  ```
+
+**Connection to HV language tests:**
+  HV already has language script validation tests (audit_spec.ts):
+  - "AR output must use Arabic script" — `/[\u0600-\u06FF]/.test(comment)`
+  - "RU output must use Cyrillic script" — `/[\u0400-\u04FF]/.test(comment)`
+
+  When STT lands, extend the same script-validation pattern to transcripts.
+  This is a CHEAP, DETERMINISTIC test — perfect for push CI (no real API).
+
+**Reference reel where this was first observed:**
+  HR project: out/adults-tj-umra-reel-v2.mp4 (Sahih al-Bukhari #1773)
+  Posted: @SahihHadithReels, May 15, 2026
+  Workaround: shipped without subtitles (audio + Cyrillic caption only)
+
+**Status:** PRE-EMPTIVE LOG (no active HV bug — informational for future).
+  Active fix tracked in HR project (see hr/fix_patterns.md P078).
+  Permanent fix target: post-Hajj (06/06/2026), Option C in HR P078.
+
+## ════════════════════════════════════════════════════════
+## PATTERN 80: Hidden file input axe accessibility warning
+## ════════════════════════════════════════════════════════
+**ID:** P080
+**Note:** Renumbered from duplicate P036 (ID collision) during reconciliation 2026-06-10.
+**Type:** Accessibility / WCAG
+**Symptom:**
+  - VS Code axe extension: "Form elements must have labels"
+  - Red squiggle on <input type="file" className="hidden">
+
+**Root cause:**
+  Axe flags hidden inputs even when they are intentionally hidden
+  and triggered programmatically via ref.current.click()
+
+**Fix — add aria-label and aria-hidden:**
+```tsx
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*"
+  className="hidden"
+  aria-label="Upload screenshot for analysis"
+  aria-hidden="true"
+  onChange={...}
+/>
+```
+**Status:** FIXED in page.tsx — May 2026
