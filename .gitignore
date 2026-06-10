@@ -8,3 +8,8 @@ out/
 
 .vercel
 .env*.local
+
+# Build & test artifacts
+tsconfig.tsbuildinfo
+test-results/
+playwright-report/
