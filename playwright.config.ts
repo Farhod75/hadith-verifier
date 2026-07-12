@@ -40,13 +40,14 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'npm run dev',
-    url: BASE_URL,
-    timeout: 120000,
-    reuseExistingServer: !IS_CI,
-  },
-
+  ...(IS_CI ? {} : {
+    webServer: {
+      command: 'npm run dev',
+      url: BASE_URL,
+      timeout: 120000,
+      reuseExistingServer: true,
+    },
+  }),
   projects: [
     {
       name: 'chromium',
