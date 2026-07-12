@@ -218,14 +218,16 @@ async def analyze_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1024,
+            model="claude-sonnet-4-6",
+            max_tokens=8000,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": build_prompt(post_text, lang)}]
         )
 
-        raw = message.content[0].text if message.content else "{}"
-        result = json.loads(raw.replace("```json", "").replace("```", "").strip())
+        text_block = next((b for b in message.content if b.type == "text"), None)
+        raw = text_block.text if text_block else "{}"
+        clean = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(clean[clean.find("{"): clean.rfind("}") + 1])
         response_text = format_response(result)
 
         await update.message.reply_text(response_text, parse_mode="Markdown", disable_web_page_preview=True)
