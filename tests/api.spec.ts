@@ -17,7 +17,7 @@ import {
   type Confidence
 } from './fixtures/test-data'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
 
 // ─────────────────────────────────────────────────────────────
 // Request validation

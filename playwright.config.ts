@@ -9,11 +9,12 @@
 
 import { defineConfig, devices } from '@playwright/test'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
 const IS_CI    = !!process.env.CI
 
 export default defineConfig({
   testDir: './tests',
+  timeout: 90000,
 
   // ── P045: exclude audit_spec from CI push runs ────────────────────────────
   // audit_spec.ts calls real Claude API many times — greeting × 5 langs,
@@ -38,6 +39,12 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+  },
+  webServer: {
+    command: 'npm run dev',
+    url: BASE_URL,
+    timeout: 120000,
+    reuseExistingServer: !IS_CI,
   },
 
   projects: [
