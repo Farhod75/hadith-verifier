@@ -168,15 +168,17 @@ RULES:
     // ── Call Claude ───────────────────────────────────────────────────────────
     const response = await anthropic.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 2000,
+      max_tokens: 8000,
       system:     SYSTEM_PROMPT,
       messages:   [{ role: 'user', content: messageContent }]
     })
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
+    const textBlock = response.content.find((b: any) => b.type === 'text') as any
+    const raw = textBlock?.text ?? '{}'
     let result: any
     try {
-      result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      const clean = raw.replace(/```json|```/g, '').trim()
+      result = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1))
     } catch {
       console.error('Parse error. Raw:', raw.slice(0, 300))
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })

@@ -81,15 +81,17 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: messageContent }]
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
-    let result
+    const textBlock = message.content.find((b: any) => b.type === 'text') as any
+    const raw = textBlock?.text ?? '{}'
+    let result: any
     try {
-      result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      const clean = raw.replace(/```json|```/g, '').trim()
+      result = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1))
     } catch {
       return NextResponse.json({ error: 'Parse error' }, { status: 500 })
     }
