@@ -81,7 +81,7 @@ fi
 # ── Analyze route changed → run api.spec.ts ───────────────────────────────────
 if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
   echo "▶ API tests (api.spec.ts, excluding @real-api)..."
-  npx playwright test tests/api.spec.ts \
+  MOCK_CLAUDE=1 npx playwright test tests/api.spec.ts \
     --project=chromium --reporter=list --workers=2 \
     --grep-invert "@real-api" 2>&1
   if [ $? -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
@@ -91,7 +91,7 @@ fi
 # ── UI changed → run E2E ──────────────────────────────────────────────────────
 if [ "$HAS_UI" -gt 0 ] && [ $FAILED -eq 0 ]; then
   echo "▶ E2E tests (hadith-verifier.spec.ts)..."
-  npx playwright test tests/hadith-verifier.spec.ts \
+  MOCK_CLAUDE=1 npx playwright test tests/hadith-verifier.spec.ts \
     --project=chromium --reporter=list --workers=2 2>&1
   if [ $? -ne 0 ]; then echo "❌ E2E tests failed"; FAILED=1; fi
   [ $FAILED -eq 0 ] && echo "✅ E2E tests OK"

@@ -10,6 +10,21 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+// Deterministic mock for pre-push/CI tests (MOCK_CLAUDE=1) — skips the real API.
+// Verdict 'fabricated' so the queue-save path is exercised too.
+const MOCK_ANALYSIS = {
+  verdict: 'fabricated',
+  confidence: 'high',
+  severity: 'HIGH',
+  claim_summary: 'Mock claim summary for testing.',
+  analysis: 'Mock analysis body. This response is generated when MOCK_CLAUDE=1.',
+  suggested_comment: 'Mock suggested comment.',
+  references: [
+    { source: 'sunnah.com', url: 'https://sunnah.com/bukhari:1', authority: 'tier1' }
+  ],
+  red_flags: ['mock_red_flag'],
+  seerah_context: 'Mock seerah context.'
+}
 
 // ─── Rate limiting (in-memory) ────────────────────────────────────────────────
 const globalDaily = { count: 0, date: '' }
@@ -112,9 +127,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Post text or image required' }, { status: 400 })
     }
 
-    // ── Rate limit ────────────────────────────────────────────────────────────
-    const { limited, message } = checkRateLimit(ip, lang)
-    if (limited) return NextResponse.json({ error: message }, { status: 429 })
+    // ── Rate limit (skipped under mock so test runs don't consume quota) ───────
+    if (process.env.MOCK_CLAUDE !== '1') {
+      const { limited, message } = checkRateLimit(ip, lang)
+      if (limited) return NextResponse.json({ error: message }, { status: 429 })
+    }
 
     // ── Build prompt ──────────────────────────────────────────────────────────
     const langInstruction = getLangInstruction(lang)
@@ -165,13 +182,15 @@ RULES:
         ]
       : [{ type: 'text', text: userPrompt }]
 
-    // ── Call Claude ───────────────────────────────────────────────────────────
-    const response = await anthropic.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 8000,
-      system:     SYSTEM_PROMPT,
-      messages:   [{ role: 'user', content: messageContent }]
-    })
+    // ── Call Claude (mockable for tests: MOCK_CLAUDE=1) ────────────────────────
+    const response = process.env.MOCK_CLAUDE === '1'
+      ? { content: [{ type: 'text', text: JSON.stringify(MOCK_ANALYSIS) }] }
+      : await anthropic.messages.create({
+          model:      'claude-sonnet-4-6',
+          max_tokens: 8000,
+          system:     SYSTEM_PROMPT,
+          messages:   [{ role: 'user', content: messageContent }]
+        })
 
     const textBlock = response.content.find((b: any) => b.type === 'text') as any
     const raw = textBlock?.text ?? '{}'
@@ -188,7 +207,7 @@ RULES:
     result.severity = getSeverity(result.verdict, result.confidence)
 
     // ── Save fabricated/weak to queue ─────────────────────────────────────────
-    if (['fabricated', 'weak'].includes(result.verdict)) {
+    if (['fabricated', 'weak'].includes(result.verdict) && process.env.MOCK_CLAUDE !== '1') {
       try {
         const sb = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
