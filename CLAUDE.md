@@ -34,6 +34,28 @@ Likely cause: antivirus controlled-folder-access or a sync/backup tool intercept
 - TODO: investigate root cause (Windows Defender controlled folder access, or sync tool).
 ---
 
+---
+## 🔌 PORTS & TEST EXECUTION
+**Local dev port map (do not cross-assign):**
+- 3000 — reserved (Next.js default / other app)
+- 3001 — hadith-verifier (this app): `npm run dev -- -p 3001`
+- 3002 — hadith-reels
+- 3011 — hadith-verifier MOCKED test server (ephemeral, auto-started by Playwright when MOCK_CLAUDE=1)
+
+**Fast tests (mocked Claude — no API cost, no rate limit, deterministic):**
+```bash
+MOCK_CLAUDE=1 npx playwright test tests/api.spec.ts --grep-invert @real-api
+```
+The pre-push hook sets MOCK_CLAUDE=1 automatically. The analyze route returns a canned
+response when MOCK_CLAUDE=1, and skips both the rate limiter and the flagged_posts insert.
+
+**Real-Claude quality tests (manual, non-deterministic, hits real API):**
+```bash
+npx playwright test tests/api.spec.ts --grep @real-api
+```
+See fix_patterns P092 for the mock-seam design.
+---
+
 ## 🎯 PROJECT GOAL
 
 AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, WhatsApp, Telegram).

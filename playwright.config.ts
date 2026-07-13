@@ -9,7 +9,9 @@
 
 import { defineConfig, devices } from '@playwright/test'
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
+const IS_MOCK  = process.env.MOCK_CLAUDE === '1'
+const PORT     = IS_MOCK ? 3011 : 3001          // 3011 = HV mock-only (3002 is HR's)
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`
 const IS_CI    = !!process.env.CI
 
 export default defineConfig({
@@ -42,10 +44,11 @@ export default defineConfig({
   },
   ...(IS_CI ? {} : {
     webServer: {
-      command: 'npm run dev',
+      command: `next dev -p ${PORT}`,
       url: BASE_URL,
       timeout: 120000,
-      reuseExistingServer: true,
+      reuseExistingServer: !IS_MOCK,
+      env: { MOCK_CLAUDE: process.env.MOCK_CLAUDE || '' },
     },
   }),
   projects: [

@@ -81,7 +81,7 @@ fi
 # ── Analyze route changed → run api.spec.ts ───────────────────────────────────
 if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
   echo "▶ API tests (api.spec.ts, excluding @real-api)..."
-  MOCK_CLAUDE=1 npx playwright test tests/api.spec.ts \
+  MOCK_CLAUDE=1 BASE_URL=http://localhost:3011 npx playwright test tests/api.spec.ts \
     --project=chromium --reporter=list --workers=2 \
     --grep-invert "@real-api" 2>&1
   if [ $? -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
