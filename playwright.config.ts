@@ -42,13 +42,12 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
-  ...(IS_CI ? {} : {
+  ...((IS_CI || IS_MOCK) ? {} : {
     webServer: {
       command: `next dev -p ${PORT}`,
       url: BASE_URL,
       timeout: 120000,
-      reuseExistingServer: !IS_MOCK,
-      env: { MOCK_CLAUDE: process.env.MOCK_CLAUDE || '' },
+      reuseExistingServer: true,
     },
   }),
   projects: [

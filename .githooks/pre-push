@@ -78,17 +78,40 @@ if [ "$HAS_TTS" -gt 0 ] && [ $FAILED -eq 0 ]; then
   [ $FAILED -eq 0 ] && echo "✅ TTS tests OK"
 fi
 
-# ── Analyze route changed → run api.spec.ts ───────────────────────────────────
+# ── Analyze route changed → run api.spec.ts (mocked, isolated server on 3011) ──
 if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo "▶ API tests (api.spec.ts, excluding @real-api)..."
-  export MOCK_CLAUDE=1
-  export BASE_URL=http://localhost:3011
-  npx playwright test tests/api.spec.ts \
-    --project=chromium --reporter=list --workers=2 \
-    --grep-invert "@real-api" 2>&1
-  API_RC=$?
-  unset MOCK_CLAUDE BASE_URL
-  if [ $API_RC -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
+  echo "▶ API tests (api.spec.ts, mocked Claude on :3011)..."
+
+  # 1. start a dedicated MOCKED server on 3011 (background)
+  MOCK_CLAUDE=1 npx next dev -p 3011 > /tmp/hv-mock-server.log 2>&1 &
+  MOCK_PID=$!
+
+  # 2. wait for it to be ready (poll /api/test, max ~40s)
+  echo "  waiting for mock server (pid $MOCK_PID)..."
+  READY=0
+  for i in $(seq 1 40); do
+    if curl -s -o /dev/null http://localhost:3011/api/test 2>/dev/null; then READY=1; break; fi
+    sleep 1
+  done
+
+  if [ $READY -ne 1 ]; then
+    echo "❌ Mock server failed to start on :3011 — see /tmp/hv-mock-server.log"
+    kill $MOCK_PID 2>/dev/null
+    FAILED=1
+  else
+    # 3. run tests against the mock server
+    BASE_URL=http://localhost:3011 npx playwright test tests/api.spec.ts \
+      --project=chromium --reporter=list --workers=2 \
+      --grep-invert "@real-api" 2>&1
+    API_RC=$?
+
+    # 4. always kill the mock server
+    kill $MOCK_PID 2>/dev/null
+
+    # 5. gate on the REAL test exit code
+    if [ $API_RC -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
+  fi
+
   [ $FAILED -eq 0 ] && echo "✅ API tests OK"
 fi
 
