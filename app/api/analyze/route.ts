@@ -4,6 +4,7 @@
 //   - JSON: text-only analysis (postText + lang)
 // Added: seerah_context field in Claude prompt
 // Fixed: P041 — new route was JSON-only, broke FormData image upload path
+// P092: Claude call mockable via MOCK_CLAUDE=1 (see playwright.config.ts + .githooks/pre-push)
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
