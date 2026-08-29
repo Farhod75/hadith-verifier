@@ -51,7 +51,7 @@ if [ "$NON_DOC" -eq 0 ]; then
   exit 0
 fi
 
-echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG"
+echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG Py=$HAS_PY"
 echo ""
 
 FAILED=0
