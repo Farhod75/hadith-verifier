@@ -513,7 +513,7 @@ class TestTTSRoute:
             json={"voiceId": "test"},
             timeout=10,
         )
-        assert res.status_code == 999
+        assert res.status_code == 400
 
     def test_tts_missing_voice_id_is_accepted(self):
         """P061: voiceId is OPTIONAL. The route maps lang -> voiceId internally
