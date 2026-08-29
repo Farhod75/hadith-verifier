@@ -2757,3 +2757,65 @@ fail), P061 (the contract `test_tts_missing_voice_id` was still asserting, three
 patterns out of date, because the suite never ran)
 
 **Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 130: A gate nested inside another gate's condition
+## ════════════════════════════════════════════════════════
+**ID:** P130
+**Type:** Gate coverage — the right check, wired to the wrong trigger
+**Project:** hadith-verifier
+**Files:** .githooks/pre-push
+**Commits:** 4e19109, b9fcfd0
+
+**Context:** P129 made HV's 68-test Python suite runnable for the first time
+(0/68 → 68/68 in ~65s). This wires it into the pre-push gate.
+
+**First attempt, and how it failed:**
+  The pytest run was placed inside the existing block that starts the mocked
+  server:
+      if [ "$HAS_ANALYZE" -gt 0 ]; then
+        ... start mock server on 3011 ...
+        ... playwright api.spec.ts ...
+        ... pytest tests/python ...        <-- added here
+      fi
+  Reusing that server was the right instinct — it already polls for readiness,
+  kills in every path, and gates on the real exit code. But the pytest run
+  inherited ANALYZE's trigger condition, so **a Python-only change never
+  reached it.**
+  Proven immediately and unintentionally: a deliberately broken assertion
+  (`assert res.status_code == 999`) was committed alongside a Python-only
+  change and **pushed clean to main**, with the hook reporting
+  `Analyze=0 ... ✅ All checks passed`. The gate was installed and the first
+  thing it did was let through the exact defect it exists to catch.
+
+**Fix:**
+  - Outer condition fires on either category:
+        if [ "$((HAS_ANALYZE + HAS_PY))" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  - Playwright guarded so it only runs when ANALYZE actually changed —
+    otherwise a Python-only change would run the TypeScript API suite for no
+    reason:
+        API_RC=0
+        if [ "$HAS_ANALYZE" -gt 0 ]; then ... API_RC=$? ; fi
+  - `PY_PATTERNS="\.py$|^tests/python/"`, and `Py=$HAS_PY` added to the
+    classification echo. It was missing at first: the branch fired correctly
+    while the output showed only `TTS=0 Analyze=0 UI=0 Config=0`, so there was
+    no way to see from the log which category had triggered.
+
+**Verified in both directions, on a PYTHON-ONLY change:**
+  - broken assertion → mock server starts, Playwright correctly skipped,
+    `1 failed, 67 passed`, `❌ Python tests failed`, push refused
+  - reverted → 68 passed, push proceeds
+  Both runs took ~65s and shared one server. No second startup.
+
+**Rule:**
+  When adding a check inside an existing block, the check inherits that block's
+  TRIGGER, not just its setup. Reusing infrastructure is right; inheriting the
+  condition is usually wrong. Ask separately: what starts the environment, and
+  what should run once it is up. And a counter that is computed but never
+  printed makes a working gate indistinguishable from a skipped one in the log.
+
+**Related:** P129 (which made the suite runnable), P119/P123/P126/P127 (HR's
+classifier-coverage family — this is the same shape a level down: not a missing
+category, but a present category wired to someone else's condition)
+
+**Status:** FIXED
