@@ -20,6 +20,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 // Those tests are correct; the mock simply could not satisfy them. A mock that
 // returns the right SHAPE but never the right CONTENT quietly invalidates every
 // assertion about content. Same per-language pattern as getRateLimitMsg below.
+// P130: the Python suite (tests/python, 68 tests) now runs in the pre-push gate
+// against the same mocked server this constant feeds. See .githooks/pre-push.
 const MOCK_BY_LANG: Record<string, {
   claim_summary: string; analysis: string; suggested_comment: string; red_flags: string[]; seerah_context: string
 }> = {

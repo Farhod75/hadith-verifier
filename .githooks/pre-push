@@ -36,12 +36,14 @@ TTS_PATTERNS="^app/api/tts/|tts\.spec\.|TTSPlayer"
 ANALYZE_PATTERNS="^app/api/analyze/|api\.spec\."
 UI_PATTERNS="^app/page\.tsx$|^components/|^lib/"
 CONFIG_PATTERNS="next\.config|playwright\.config|tsconfig|package\.json$"
+PY_PATTERNS="\.py$|^tests/python/"
 
 NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
 HAS_TTS=$(echo "$CHANGED_FILES" | grep -E "$TTS_PATTERNS" | wc -l | tr -d ' ')
 HAS_ANALYZE=$(echo "$CHANGED_FILES" | grep -E "$ANALYZE_PATTERNS" | wc -l | tr -d ' ')
 HAS_UI=$(echo "$CHANGED_FILES" | grep -E "$UI_PATTERNS" | wc -l | tr -d ' ')
 HAS_CONFIG=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | wc -l | tr -d ' ')
+HAS_PY=$(echo "$CHANGED_FILES" | grep -E "$PY_PATTERNS" | wc -l | tr -d ' ')
 
 # ── Doc-only: skip instantly ──────────────────────────────────────────────────
 if [ "$NON_DOC" -eq 0 ]; then
@@ -105,11 +107,24 @@ if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
       --grep-invert "@real-api" 2>&1
     API_RC=$?
 
+    # 3b. P129: the Python suite runs against the SAME mock server rather than
+    # starting its own. 68 tests, ~69s. Until P129 it defaulted to port 3000
+    # where nothing listens, so it had never passed on any machine and was
+    # never wired into any gate.
+    PY_RC=0
+    if [ "$HAS_PY" -gt 0 ] || [ "$HAS_ANALYZE" -gt 0 ]; then
+      echo "  ▶ Python API suite (pytest, same mock server)..."
+      BASE_URL=http://localhost:3011 python -m pytest tests/python -q 2>&1
+      PY_RC=$?
+      if [ $PY_RC -ne 0 ]; then echo "❌ Python tests failed"; fi
+    fi
+
     # 4. always kill the mock server
     kill $MOCK_PID 2>/dev/null
 
     # 5. gate on the REAL test exit code
     if [ $API_RC -ne 0 ]; then echo "❌ API tests failed"; FAILED=1; fi
+    if [ $PY_RC -ne 0 ]; then FAILED=1; fi
   fi
 
   [ $FAILED -eq 0 ] && echo "✅ API tests OK"
