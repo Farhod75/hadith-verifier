@@ -2674,3 +2674,86 @@ keep the shared P-number sequence unbroken. No HV action required.
   discarded before the empty Network tab settled it in seconds.
 
 **Status:** FIXED — shipped 2026-08-11
+
+## ════════════════════════════════════════════════════════
+## PATTERN 129: A live 500 behind a hook that never ran and a suite that never passed
+## ════════════════════════════════════════════════════════
+**ID:** P129
+**Type:** Production outage — found by accident, invisible by construction
+**Project:** hadith-verifier
+**Files:** app/api/voice-intent/route.ts, app/api/dua/route.ts,
+           app/api/analyze/route.ts, tests/python/conftest.py,
+           tests/python/test_analyze_api.py, .gitignore
+**Commits:** b0ca68c, 60b6881, e473ff4
+**Found:** 2026-08-29, while attempting to backport HR's pre-push hook
+
+**What was actually wrong, in production, the whole time:**
+      POST https://hadithverifier.com/api/voice-intent
+      HTTP/1.1 500 Internal Server Error
+      Content-Length: 0
+  An empty 500. No body, no error, nothing in the response to say why. The
+  route was calling model `claude-sonnet-4-6`, retired when the account moved
+  to `claude-sonnet-5`. Every real request had been failing.
+
+**Three layers of silence, each one hiding the next:**
+
+  1. **`core.hooksPath` was never set in HV.** `.githooks/pre-push` was tracked,
+     maintained, and never executed — Git was reading `.git/hooks/` instead.
+     Identical to P119 in HR, discovered here only because P119 taught us to
+     check. The hook has now run for the first time.
+
+  2. **The 68-test Python suite had never passed, on any machine.**
+     `test_analyze_api.py` defaulted to `http://localhost:3000`. HV's dev server
+     is 3001 (package.json); the mocked server the hook starts is 3011. Nothing
+     has ever listened on 3000. Every test failed on connection refused, and a
+     full run took 5½ minutes of timeouts.
+     **conftest.py had a SECOND, separate default** used only for the
+     `Testing against: ...` banner. Fixing conftest changed the printed URL
+     while every request still went to 3000 — the diagnostic output lied about
+     where the traffic went, which cost the longest stretch of this session.
+
+  3. **The route had no error handling at all.** `await anthropic.messages
+     .create(...)` sat bare in the handler. Any failure escaped and Next
+     answered with an empty 500. `/api/analyze` wraps its whole body in
+     try/catch; this route never did. So even someone looking straight at the
+     failure learned nothing from it.
+
+**And the tests would not have caught it anyway.** They run with MOCK_CLAUDE=1,
+which never touches Anthropic. The model string is exactly the class of defect a
+mocked suite is blind to. The tests mattered here not because they would have
+caught this, but because a suite nobody can run is a suite nobody looks at — and
+nobody looking is how the outage lasted.
+
+**Fixes:**
+  - `claude-sonnet-4-6` → `claude-sonnet-5` in voice-intent and dua (b0ca68c)
+  - try/catch around the Anthropic call, returning 503 with `detail` and logging
+    status/name/message; plus a guard on `req.json()`, which threw on a
+    malformed body before the transcript check could run (60b6881)
+  - Test port default 3000 → 3011 in BOTH files (e473ff4)
+  - **Language-aware mock.** MOCK_ANALYSIS was one frozen English constant, so
+    19 tests asserting "the response is in the requested script" could not pass
+    against it. Replaced with MOCK_BY_LANG covering en/ru/uz/tj/ar, same
+    per-language shape as the existing getRateLimitMsg(). The tests were correct;
+    the mock returned the right SHAPE and never the right CONTENT, which
+    silently invalidates every assertion about content.
+  - `__pycache__` untracked and gitignored
+
+**Result: 0/68 → 68/68 in 69 seconds.** Production returns 200.
+
+**Residual, not fixed:** voice-intent can return `200 {}` — the model produced
+valid but empty JSON, and the fallback only fires on a PARSE failure, not on a
+parse that succeeds into nothing. Degraded response, not an outage.
+
+**Rule:**
+  A route that cannot report its own failure is a route nobody will notice
+  failing. Error handling is not defensive politeness — it is the only channel
+  through which a production problem announces itself. And when a diagnostic
+  prints a value, confirm the code under test reads THAT value: a banner sourced
+  from a different variable than the requests is worse than no banner, because
+  it is believed.
+
+**Related:** P119 (core.hooksPath unset, HR), P093/P110/P127 (gates that cannot
+fail), P061 (the contract `test_tts_missing_voice_id` was still asserting, three
+patterns out of date, because the suite never ran)
+
+**Status:** FIXED
