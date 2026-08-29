@@ -81,8 +81,11 @@ if [ "$HAS_TTS" -gt 0 ] && [ $FAILED -eq 0 ]; then
 fi
 
 # ── Analyze route changed → run api.spec.ts (mocked, isolated server on 3011) ──
-if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
-  echo "▶ API tests (api.spec.ts, mocked Claude on :3011)..."
+# P130: fires on ANALYZE **or** PY. Nesting the pytest run inside the ANALYZE
+# branch meant a Python-only change skipped it — proven the hard way when a
+# deliberately broken assertion (== 999) pushed clean to main.
+if [ "$((HAS_ANALYZE + HAS_PY))" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  echo "▶ API tests (mocked Claude on :3011)..."
 
   # 1. start a dedicated MOCKED server on 3011 (background)
   MOCK_CLAUDE=1 npx next dev -p 3011 > /tmp/hv-mock-server.log 2>&1 &
@@ -102,10 +105,13 @@ if [ "$HAS_ANALYZE" -gt 0 ] && [ $FAILED -eq 0 ]; then
     FAILED=1
   else
     # 3. run tests against the mock server
-    BASE_URL=http://localhost:3011 npx playwright test tests/api.spec.ts \
-      --project=chromium --reporter=list --workers=2 \
-      --grep-invert "@real-api" 2>&1
-    API_RC=$?
+    API_RC=0
+    if [ "$HAS_ANALYZE" -gt 0 ]; then
+      BASE_URL=http://localhost:3011 npx playwright test tests/api.spec.ts \
+        --project=chromium --reporter=list --workers=2 \
+        --grep-invert "@real-api" 2>&1
+      API_RC=$?
+    fi
 
     # 3b. P129: the Python suite runs against the SAME mock server rather than
     # starting its own. 68 tests, ~69s. Until P129 it defaulted to port 3000
