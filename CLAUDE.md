@@ -42,6 +42,22 @@ Likely cause: antivirus controlled-folder-access or a sync/backup tool intercept
 - 3002 — hadith-reels
 - 3011 — hadith-verifier MOCKED test server (ephemeral, auto-started by Playwright when MOCK_CLAUDE=1)
 
+## ⚠️ TEST PORTS — three of them, and they must agree
+
+| What | Port |
+|---|---|
+| `npm run dev` | **3001** (package.json) |
+| Mocked server the pre-push hook starts | **3011** (`MOCK_CLAUDE=1`) |
+| Python suite default | **3011** (P129 — was 3000, where nothing runs) |
+
+- **`BASE_URL` is defined TWICE.** `tests/python/conftest.py` feeds only the
+  `Testing against: ...` banner; `tests/python/test_analyze_api.py` is what the
+  requests actually use. Change both or the banner lies (P129).
+- Run the suite against the MOCKED server: 69 seconds. Against the live 3001 it
+  is 21 minutes and spends real Anthropic credits.
+- `next dev` dies if you run another command in the same terminal. It needs its
+  own window.
+
 **Fast tests (mocked Claude — no API cost, no rate limit, deterministic):**
 ```bash
 MOCK_CLAUDE=1 npx playwright test tests/api.spec.ts --grep-invert @real-api
