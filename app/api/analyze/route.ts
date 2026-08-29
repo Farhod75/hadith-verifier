@@ -13,18 +13,65 @@ import { createClient } from '@supabase/supabase-js'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 // Deterministic mock for pre-push/CI tests (MOCK_CLAUDE=1) — skips the real API.
 // Verdict 'fabricated' so the queue-save path is exercised too.
-const MOCK_ANALYSIS = {
-  verdict: 'fabricated',
-  confidence: 'high',
-  severity: 'HIGH',
-  claim_summary: 'Mock claim summary for testing.',
-  analysis: 'Mock analysis body. This response is generated when MOCK_CLAUDE=1.',
-  suggested_comment: 'Mock suggested comment.',
-  references: [
-    { source: 'sunnah.com', url: 'https://sunnah.com/bukhari:1', authority: 'tier1' }
-  ],
-  red_flags: ['mock_red_flag'],
-  seerah_context: 'Mock seerah context.'
+//
+// P129: the mock is LANGUAGE-AWARE. It used to be one frozen English constant,
+// which meant every test asserting "the response is in the requested script"
+// failed against it — 19 of them, in TestLanguageOutput and TestMultiLanguage.
+// Those tests are correct; the mock simply could not satisfy them. A mock that
+// returns the right SHAPE but never the right CONTENT quietly invalidates every
+// assertion about content. Same per-language pattern as getRateLimitMsg below.
+const MOCK_BY_LANG: Record<string, {
+  claim_summary: string; analysis: string; suggested_comment: string; red_flags: string[]; seerah_context: string
+}> = {
+  en: {
+    claim_summary:     'Mock claim summary for testing.',
+    analysis:          'This hadith is fabricated and is not authentic. No reliable chain of narration exists in the classical collections.',
+    suggested_comment: 'Assalamu alaikum. This narration appears to be fabricated — it is not found in any authentic collection. Please verify before sharing.',
+    red_flags:         ['no_chain_of_narration', 'not_in_authentic_collections'],
+    seerah_context:    'Mock seerah context.',
+  },
+  ru: {
+    claim_summary:     'Пробное краткое изложение утверждения.',
+    analysis:          'Этот хадис является выдуманным и недостоверным. В классических сборниках отсутствует надёжная цепочка передатчиков.',
+    suggested_comment: 'Ассаляму алейкум. Это повествование представляется выдуманным — оно не найдено ни в одном достоверном сборнике. Пожалуйста, проверьте перед тем, как делиться.',
+    red_flags:         ['нет_цепочки_передатчиков', 'отсутствует_в_достоверных_сборниках'],
+    seerah_context:    'Пробный исторический контекст.',
+  },
+  uz: {
+    claim_summary:     'Синов учун қисқача баён.',
+    analysis:          'Бу ҳадис тўқилган ва ишончли эмас. Классик тўпламларда ишончли ровийлар силсиласи мавжуд эмас.',
+    suggested_comment: 'Ассалому алайкум. Бу ривоят тўқилганга ўхшайди — у ҳеч бир ишончли тўпламда учрамайди. Тарқатишдан олдин текширинг.',
+    red_flags:         ['ровийлар_силсиласи_йўқ', 'ишончли_тўпламларда_йўқ'],
+    seerah_context:    'Синов тарихий контексти.',
+  },
+  tj: {
+    claim_summary:     'Хулосаи мухтасари санҷишӣ.',
+    analysis:          'Ин ҳадис сохта аст ва эътимодбахш нест. Дар маҷмӯаҳои классикӣ силсилаи боэътимоди ровиён вуҷуд надорад.',
+    suggested_comment: 'Ассалому алайкум. Ин ривоят сохта ба назар мерасад — он дар ҳеҷ маҷмӯаи саҳеҳ ёфт намешавад. Пеш аз паҳн кардан санҷед.',
+    red_flags:         ['силсилаи_ровиён_нест', 'дар_маҷмӯаҳои_саҳеҳ_нест'],
+    seerah_context:    'Заминаи таърихии санҷишӣ.',
+  },
+  ar: {
+    claim_summary:     'ملخص الادعاء للاختبار.',
+    analysis:          'هذا الحديث موضوع وغير صحيح. لا يوجد إسناد معتمد في المجموعات الكلاسيكية.',
+    suggested_comment: 'السلام عليكم. يبدو أن هذه الرواية موضوعة — لم يتم العثور عليها في أي مجموعة صحيحة. يرجى التحقق قبل المشاركة.',
+    red_flags:         ['لا_يوجد_إسناد', 'ليس_في_المجموعات_الصحيحة'],
+    seerah_context:    'السياق التاريخي للاختبار.',
+  },
+}
+
+function mockAnalysis(lang: string) {
+  const key = lang === 'uz_cyrillic' || lang === 'uz_latin' ? 'uz' : lang
+  const m = MOCK_BY_LANG[key] ?? MOCK_BY_LANG.en
+  return {
+    verdict: 'fabricated',
+    confidence: 'high',
+    severity: 'HIGH',
+    ...m,
+    references: [
+      { source: 'sunnah.com', url: 'https://sunnah.com/bukhari:1', authority: 'tier1' }
+    ],
+  }
 }
 
 // ─── Rate limiting (in-memory) ────────────────────────────────────────────────
@@ -185,9 +232,9 @@ RULES:
 
     // ── Call Claude (mockable for tests: MOCK_CLAUDE=1) ────────────────────────
     const response = process.env.MOCK_CLAUDE === '1'
-      ? { content: [{ type: 'text', text: JSON.stringify(MOCK_ANALYSIS) }] }
+            ? { content: [{ type: 'text', text: JSON.stringify(mockAnalysis(lang)) }] }
       : await anthropic.messages.create({
-          model:      'claude-sonnet-4-6',
+          model:      'claude-sonnet-5',
           max_tokens: 8000,
           system:     SYSTEM_PROMPT,
           messages:   [{ role: 'user', content: messageContent }]

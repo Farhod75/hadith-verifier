@@ -11,7 +11,12 @@ import httpx
 # ─────────────────────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────────────────────
-BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
+# P129: default was 3000, where nothing has ever run. HV's dev server is 3001
+# (package.json); the mocked server the pre-push hook starts is 3011. This is
+# the value the TESTS use — conftest.py has its own copy, which only feeds the
+# "Testing against:" banner. Keep them in step or the banner lies about where
+# the requests went.
+BASE_URL = os.getenv("BASE_URL", "http://localhost:3011")
 TIMEOUT = 90.0
 
 VALID_VERDICTS = {"fabricated", "weak", "authentic", "unclear", "no_hadith"}
@@ -510,13 +515,17 @@ class TestTTSRoute:
         )
         assert res.status_code == 400
 
-    def test_tts_missing_voice_id_returns_400(self):
+    def test_tts_missing_voice_id_is_accepted(self):
+        """P061: voiceId is OPTIONAL. The route maps lang -> voiceId internally
+        because TTSPlayer sends lang only. This test previously asserted 400 —
+        the pre-P061 contract — and had been failing silently ever since,
+        because the suite defaulted to port 3000 where nothing runs."""
         res = httpx.post(
             f"{BASE_URL}/api/tts",
             json={"text": "test"},
-            timeout=10,
+            timeout=30,
         )
-        assert res.status_code == 400
+        assert res.status_code in (200, 503), res.text
 
     def test_tts_valid_request_returns_audio_or_503(self):
         res = httpx.post(
