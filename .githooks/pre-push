@@ -37,6 +37,9 @@ ANALYZE_PATTERNS="^app/api/analyze/|api\.spec\."
 UI_PATTERNS="^app/page\.tsx$|^components/|^lib/"
 CONFIG_PATTERNS="next\.config|playwright\.config|tsconfig|package\.json$"
 PY_PATTERNS="\.py$|^tests/python/"
+PS1_PATTERNS="\.ps1$"
+JSON_PATTERNS="\.json$"
+TEST_PATTERNS="^tests/|\.spec\.ts$"
 
 NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
 HAS_TTS=$(echo "$CHANGED_FILES" | grep -E "$TTS_PATTERNS" | wc -l | tr -d ' ')
@@ -44,17 +47,32 @@ HAS_ANALYZE=$(echo "$CHANGED_FILES" | grep -E "$ANALYZE_PATTERNS" | wc -l | tr -
 HAS_UI=$(echo "$CHANGED_FILES" | grep -E "$UI_PATTERNS" | wc -l | tr -d ' ')
 HAS_CONFIG=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | wc -l | tr -d ' ')
 HAS_PY=$(echo "$CHANGED_FILES" | grep -E "$PY_PATTERNS" | wc -l | tr -d ' ')
-
+HAS_PS1=$(echo "$CHANGED_FILES" | grep -E "$PS1_PATTERNS" | wc -l | tr -d ' ')
+HAS_JSON=$(echo "$CHANGED_FILES" | grep -E "$JSON_PATTERNS" | wc -l | tr -d ' ')
+HAS_TEST=$(echo "$CHANGED_FILES" | grep -E "$TEST_PATTERNS" | wc -l | tr -d ' ')
 # ── Doc-only: skip instantly ──────────────────────────────────────────────────
 if [ "$NON_DOC" -eq 0 ]; then
   echo "✅ Doc-only push — skipping all tests"
   exit 0
 fi
 
-echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG Py=$HAS_PY"
-echo ""
+echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG Py=$HAS_PY Ps1=$HAS_PS1 Json=$HAS_JSON Test=$HAS_TEST"
 
 FAILED=0
+
+# P127: an empty or undefined *_PATTERNS is a live misrouting bug, not a style
+# issue. `grep -E ""` matches EVERY line, so the counter reads HIGH and the
+# wrong branch runs — in HR, renaming PY_PATTERNS produced Py=1 on a hook-only
+# change. Testing whether the COUNTER is set does not work: it always is,
+# because an empty pattern still yields a number. Test the pattern itself.
+for p in DOC_PATTERNS TTS_PATTERNS ANALYZE_PATTERNS UI_PATTERNS CONFIG_PATTERNS \
+         PY_PATTERNS PS1_PATTERNS JSON_PATTERNS TEST_PATTERNS; do
+  eval "val=\$$p"
+  if [ -z "$val" ]; then
+    echo "❌ $p is empty or undefined — an empty regex matches EVERY file"
+    FAILED=1
+  fi
+done
 
 # ── Always: TypeScript ────────────────────────────────────────────────────────
 echo "▶ TypeScript check..."
@@ -68,6 +86,56 @@ if [ "$HAS_CONFIG" -gt 0 ] && [ $FAILED -eq 0 ]; then
   npm run build 2>&1
   if [ $? -ne 0 ]; then echo "❌ Build failed"; FAILED=1; fi
   [ $FAILED -eq 0 ] && echo "✅ Build OK"
+fi
+
+# ── PowerShell changed → parse without executing (P123) ──────────────────────
+if [ "$HAS_PS1" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  echo "▶ PowerShell checks..."
+  PS_BIN=""
+  for c in pwsh powershell; do
+    if command -v "$c" > /dev/null 2>&1; then PS_BIN="$c"; break; fi
+  done
+  if [ -z "$PS_BIN" ]; then
+    echo "❌ .ps1 changed but no pwsh/powershell on PATH — cannot verify"
+    FAILED=1
+  else
+    for f in $(echo "$CHANGED_FILES" | grep -E "$PS1_PATTERNS"); do
+      if [ -f "$f" ]; then
+        "$PS_BIN" -NoProfile -NonInteractive -Command "
+          \$errs = \$null
+          \$null = [System.Management.Automation.PSParser]::Tokenize(
+            (Get-Content -Raw -LiteralPath '$f'), [ref]\$errs)
+          if (\$errs -and \$errs.Count -gt 0) {
+            \$errs | ForEach-Object { Write-Host \"  \$(\$_.Message) (line \$(\$_.Token.StartLine))\" }
+            exit 1
+          }
+          exit 0" 2>&1
+        if [ $? -ne 0 ]; then echo "❌ PowerShell parse error in $f"; FAILED=1; fi
+      fi
+    done
+  fi
+  [ $FAILED -eq 0 ] && echo "✅ PowerShell OK"
+fi
+
+# ── JSON changed → must parse (P123) ─────────────────────────────────────────
+if [ "$HAS_JSON" -gt 0 ] && [ $FAILED -eq 0 ]; then
+  echo "▶ JSON checks..."
+  PY_BIN=""
+  for c in python python3 py; do
+    if command -v "$c" > /dev/null 2>&1; then PY_BIN="$c"; break; fi
+  done
+  if [ -z "$PY_BIN" ]; then
+    echo "❌ .json changed but no python on PATH — cannot verify"
+    FAILED=1
+  else
+    for f in $(echo "$CHANGED_FILES" | grep -E "$JSON_PATTERNS"); do
+      if [ -f "$f" ]; then
+        "$PY_BIN" -c "import json,sys; json.load(open(sys.argv[1],encoding='utf-8'))" "$f" 2>&1
+        if [ $? -ne 0 ]; then echo "❌ invalid JSON in $f"; FAILED=1; fi
+      fi
+    done
+  fi
+  [ $FAILED -eq 0 ] && echo "✅ JSON OK"
 fi
 
 # ── TTS route/component changed → run tts.spec.ts ────────────────────────────
@@ -137,7 +205,9 @@ if [ "$((HAS_ANALYZE + HAS_PY))" -gt 0 ] && [ $FAILED -eq 0 ]; then
 fi
 
 # ── UI changed → run E2E ──────────────────────────────────────────────────────
-if [ "$HAS_UI" -gt 0 ] && [ $FAILED -eq 0 ]; then
+# P127: TEST_PATTERNS was defined but never used in HR — a change to the suite
+# itself ran nothing. Same here: a spec-only change matched no branch.
+if [ "$((HAS_UI + HAS_TEST))" -gt 0 ] && [ $FAILED -eq 0 ]; then
   echo "▶ E2E tests (hadith-verifier.spec.ts)..."
   export MOCK_CLAUDE=1
   export BASE_URL=http://localhost:3011

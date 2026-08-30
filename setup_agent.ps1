@@ -47,3 +47,5 @@ git push origin main
 Write-Host ""
 Write-Host "Done! All files pushed to GitHub." -ForegroundColor Green
 Write-Host "Next: manually add sanitizeInput() and validateOutput() from security_layer.ts into app\api\analyze\route.ts" -ForegroundColor Yellow
+
+
