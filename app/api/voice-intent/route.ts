@@ -77,14 +77,37 @@ JSON only, no preamble.`
     )
   }
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
-  try {
-    const clean = raw.replace(/```json|```/g, '').trim()
-    const data = JSON.parse(clean)
-    return NextResponse.json(data)
-  } catch {
-    // Not an error: the model returned something unparseable, and 'unknown'
-    // with the raw transcript is a usable fallback for the caller.
-    return NextResponse.json({ intent: 'unknown', search_query: transcript })
+   // P132: parsing successfully is not the same as parsing into something
+  // usable. The old code caught only a PARSE failure, so `{}` — valid JSON,
+  // empty object — returned 200 with no intent at all. Observed in production.
+  // The initial '{}' below made that path certain whenever the content block
+  // was not text.
+  const VALID_INTENTS = [
+    'find_hadith', 'verify_hadith', 'find_dua',
+    'verify_dua', 'find_quran', 'unknown',
+  ]
+
+  const fallback = { intent: 'unknown', search_query: transcript, lang }
+
+  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+  if (!raw.trim()) {
+    console.warn('voice-intent: model returned no text block')
+    return NextResponse.json(fallback)
   }
+
+  let data: any
+  try {
+      data = JSON.parse(raw.replace(/```json|```/g, '').trim())
+  } catch {
+    console.warn('voice-intent: unparseable model output:', raw.slice(0, 200))
+    return NextResponse.json(fallback)
+  }
+
+  // Validate the SHAPE, not just that JSON.parse succeeded.
+  if (!data || typeof data !== 'object' || !VALID_INTENTS.includes(data.intent)) {
+    console.warn('voice-intent: parsed but unusable:', JSON.stringify(data).slice(0, 200))
+    return NextResponse.json(fallback)
+  }
+
+  return NextResponse.json({ ...data, search_query: data.search_query || transcript })
 }
