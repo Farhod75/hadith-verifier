@@ -34,6 +34,7 @@ echo "📋 Changed: $(echo "$CHANGED_FILES" | wc -l | tr -d ' ') files"
 DOC_PATTERNS="\.md$|fix_patterns|CLAUDE|AGENTS|QA_STANDARDS|CI_WORKFLOW|README|CHANGELOG|\.githooks|\.gitignore|\.txt$"
 TTS_PATTERNS="^app/api/tts/|tts\.spec\.|TTSPlayer"
 ANALYZE_PATTERNS="^app/api/analyze/|api\.spec\."
+API_PATTERNS="^app/api/"
 UI_PATTERNS="^app/page\.tsx$|^components/|^lib/"
 CONFIG_PATTERNS="next\.config|playwright\.config|tsconfig|package\.json$"
 PY_PATTERNS="\.py$|^tests/python/"
@@ -44,6 +45,7 @@ TEST_PATTERNS="^tests/|\.spec\.ts$"
 NON_DOC=$(echo "$CHANGED_FILES" | grep -vE "$DOC_PATTERNS" | wc -l | tr -d ' ')
 HAS_TTS=$(echo "$CHANGED_FILES" | grep -E "$TTS_PATTERNS" | wc -l | tr -d ' ')
 HAS_ANALYZE=$(echo "$CHANGED_FILES" | grep -E "$ANALYZE_PATTERNS" | wc -l | tr -d ' ')
+HAS_API=$(echo "$CHANGED_FILES" | grep -E "$API_PATTERNS" | wc -l | tr -d ' ')
 HAS_UI=$(echo "$CHANGED_FILES" | grep -E "$UI_PATTERNS" | wc -l | tr -d ' ')
 HAS_CONFIG=$(echo "$CHANGED_FILES" | grep -E "$CONFIG_PATTERNS" | wc -l | tr -d ' ')
 HAS_PY=$(echo "$CHANGED_FILES" | grep -E "$PY_PATTERNS" | wc -l | tr -d ' ')
@@ -56,7 +58,7 @@ if [ "$NON_DOC" -eq 0 ]; then
   exit 0
 fi
 
-echo "🔧 Code changes: TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG Py=$HAS_PY Ps1=$HAS_PS1 Json=$HAS_JSON Test=$HAS_TEST"
+echo "🔧 Code changes: API=$HAS_API TTS=$HAS_TTS Analyze=$HAS_ANALYZE UI=$HAS_UI Config=$HAS_CONFIG Py=$HAS_PY Ps1=$HAS_PS1 Json=$HAS_JSON Test=$HAS_TEST"
 
 FAILED=0
 
@@ -65,7 +67,7 @@ FAILED=0
 # wrong branch runs — in HR, renaming PY_PATTERNS produced Py=1 on a hook-only
 # change. Testing whether the COUNTER is set does not work: it always is,
 # because an empty pattern still yields a number. Test the pattern itself.
-for p in DOC_PATTERNS TTS_PATTERNS ANALYZE_PATTERNS UI_PATTERNS CONFIG_PATTERNS \
+for p in DOC_PATTERNS API_PATTERNS TTS_PATTERNS ANALYZE_PATTERNS UI_PATTERNS CONFIG_PATTERNS \
          PY_PATTERNS PS1_PATTERNS JSON_PATTERNS TEST_PATTERNS; do
   eval "val=\$$p"
   if [ -z "$val" ]; then
