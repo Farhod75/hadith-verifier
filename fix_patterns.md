@@ -2874,3 +2874,63 @@ to the next reader and an unexplained presence looks like coverage to everyone.
 branch this completes)
 
 **Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 132: Parsing succeeded; the result was unusable
+## ════════════════════════════════════════════════════════
+**ID:** P132
+**Type:** Validation gap + classifier blind spot
+**Project:** hadith-verifier
+**Files:** app/api/voice-intent/route.ts, .githooks/pre-push
+**Commits:** cc486de, 88ff2d1, 83d52f2
+
+**Symptom:** after P129 fixed the 500, the route returned:
+      HTTP 200
+      {}
+  A successful response containing no intent. The caller gets a 200 and nothing
+  to act on — worse than an error, because nothing downstream will retry.
+
+**Cause:** the fallback caught only a PARSE FAILURE.
+      try { data = JSON.parse(clean); return NextResponse.json(data) }
+      catch { return NextResponse.json({ intent: 'unknown', ... }) }
+  `JSON.parse('{}')` does not throw. An empty object is valid JSON, so it
+  sailed past the catch and was returned verbatim. And the line above made that
+  path certain: when the content block was not text, `raw` was initialised to
+  the literal string `'{}'` — the fallback value itself was a shape that
+  defeated the fallback.
+
+**Fix:** validate the SHAPE, not the fact that parsing succeeded.
+  - empty/missing text block handled before parsing, with its own warn
+  - parse failure handled separately
+  - **the parsed object is checked against a known intent set** — anything not
+    in the six valid values falls back
+  - `search_query` always defaults to the transcript, so the caller has
+    something usable on every path
+  - each branch logs what it rejected, so the next failure is diagnosable
+
+**Verified in both directions, against the live route on :3001:**
+  - normal call → `{"intent":"find_hadith","topic":"patience",...}`
+  - `JSON.parse('{}')` forced → `{"intent":"unknown","search_query":"tell me a
+    hadith about patience","lang":"en"}` plus a `parsed but unusable` warning —
+    where it previously returned a bare `{}`
+
+**Second finding, same commit — the classifier could not see the route.**
+  Pushing this fix printed every counter at zero. `TTS_PATTERNS` and
+  `ANALYZE_PATTERNS` name two API routes explicitly; everything else under
+  `app/api/` — voice-intent, dua, queue, test — matched nothing and fell
+  through to `tsc`. **This is how P129's production 500 shipped unnoticed.**
+  Added `API_PATTERNS="^app/api/"` and `API=` to the classification line.
+  **Deliberately no branch.** HV has no test suite covering these routes, so a
+  branch would be a gate guarding nothing — the failure this project keeps
+  closing. Visibility now, coverage when the tests exist. The counter says
+  "something changed here that nothing checks," which is the honest statement.
+
+**Rule:** a successful parse is not a successful result. Any boundary that
+accepts structured input from a non-deterministic source must validate the
+shape it needs, not merely that the bytes were well-formed — and a fallback
+value must not itself be a shape that defeats the fallback.
+
+**Related:** P129 (the outage this route was fixed for), P131 (the classifier
+work this completes)
+
+**Status:** FIXED
