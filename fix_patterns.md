@@ -2819,3 +2819,58 @@ classifier-coverage family — this is the same shape a level down: not a missin
 category, but a present category wired to someone else's condition)
 
 **Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 131: Porting HR's classifier — and declining one branch
+## ════════════════════════════════════════════════════════
+**ID:** P131
+**Type:** Gate coverage — completing the backport
+**Project:** hadith-verifier
+**Files:** .githooks/pre-push
+**Commit:** eb187c6
+
+**Context:** HR closed six classifier gaps over P119–P128. HV's hook had
+`TTS / ANALYZE / UI / CONFIG` and nothing else, so a change to a `.ps1`, a
+`.json`, or the test suite itself matched no category, fell through to
+`npx tsc --noEmit`, and pushed on the strength of a check that could not read
+any of them.
+
+**Ported:**
+  - `PS1_PATTERNS` → `PSParser::Tokenize` on each changed `.ps1`. Parses WITHOUT
+    executing; a hook that ran `setup_agent.ps1` would be a fault, not a check.
+  - `JSON_PATTERNS` → `json.load` on each changed `.json`.
+  - `TEST_PATTERNS` → folded into the UI/E2E condition. It was defined in HR and
+    never used (P127); here it did not exist at all. Either way a spec-only
+    change ran nothing.
+  - The empty-pattern guard (P127), placed after `FAILED=0` so its result is not
+    overwritten.
+  - Both new branches FAIL if their interpreter is missing. A missing checker
+    must never read as success.
+
+**Declined, deliberately: `TS_SCRIPT_PATTERNS`.**
+  HR runs the Uzbek transliterator suite on `scripts/*.ts`. HV has no
+  `scripts/` TypeScript at all. Adding the branch would have produced a check
+  that can never run, never fail, and always print nothing — the exact shape of
+  P093/P110/P119/P127. Copying a gate because the other repo has it is how a
+  decorative gate gets installed. Recorded here so the absence reads as a
+  decision rather than an oversight.
+
+**Verified in both directions, one branch at a time:**
+  - unclosed `if ($true) {` in setup_agent.ps1 → `Ps1=1`,
+    `Missing closing '}' ... (line 50)`, blocked
+  - `{"a": 1,}` → `Json=1`, `Illegal trailing comma`, blocked
+  - `PY_PATTERNS` renamed → **`Py=2`** on a two-file commit containing no
+    Python, plus `❌ PY_PATTERNS is empty or undefined`, blocked. The inflated
+    counter is the misrouting bug visible in the output: an empty regex matches
+    every line, so a dead pattern makes counts go UP, not down.
+  - all restored → `Ps1=1`, PowerShell OK, push proceeds
+
+**Rule:** a backport is a set of decisions, not a copy. For each check the
+source repo has, ask whether this repo has anything for it to act on — and if
+not, record the refusal, because an unexplained absence looks like an oversight
+to the next reader and an unexplained presence looks like coverage to everyone.
+
+**Related:** P119, P123, P126, P127 (HR's classifier work), P130 (the pytest
+branch this completes)
+
+**Status:** FIXED
