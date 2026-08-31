@@ -493,23 +493,39 @@ When CI yml references a file, verify exact filename with:
 ## ════════════════════════════════════════════════════════
 
 ### 6.5 MANDATORY: Pre-push test protocol (added after CI #122-143)
-NEVER run `git push` without running tests locally first.
-20+ CI failures were caused by skipping this step.
+NEVER run `git push` without the pre-push gate running. 20+ CI failures were
+caused by skipping this step.
+
+**Hook location:** `.githooks/pre-push`, with `core.hooksPath = .githooks`.
+NOT `.git/hooks/pre-push` — a hook there does not run once `core.hooksPath`
+is set, and git reports nothing. The push simply succeeds with no checks.
+This is not hypothetical: HV shipped a live production 500 on
+`/api/voice-intent` behind exactly this, alongside a 68-test suite that had
+never passed (P129–P132).
+
+Verify before trusting the gate on any machine:
 
 ```powershell
-# hadith-verifier — run before EVERY push:
-npx tsc --noEmit
-npx playwright test tests/hadith-verifier.spec.ts --project=chromium
-npx playwright test tests/api.spec.ts --project=chromium
-
-# hadith-reels — run before EVERY push:
-npx tsc --noEmit
-npm run build
-npx playwright test tests/hadith-reels.spec.ts --project=chromium
+git config core.hooksPath        # must print .githooks
+ls .githooks/pre-push            # must exist
 ```
 
-Automated via .git/hooks/pre-push script in both projects.
-Doc-only commits bypass with: git push --no-verify
+The hook classifies changed files and runs only the mapped checks, printing a
+`📊 Classification` line. Read it. A `.ps1` change must show `Ps1=1`; doc-only
+changes show `Doc=1` and skip tests automatically.
+
+**Do NOT use `git push --no-verify`.** The hook already skips tests for
+doc-only changes — that decision belongs to the classifier, not to a human
+eyeballing the diff. `--no-verify` disables every check including the
+classifier itself, and a change misjudged as doc-only then ships ungated.
+
+**A green hook is not proof.** Known gap as of 2026-08-31: the PowerShell
+check passes a script whose backtick continuation is broken and which cannot
+execute past its first statement. Run the script once after editing it.
+
+**Gate integrity rule:** a gate must be proven capable of failing. Break it
+deliberately, confirm it blocks, restore it. A gate that has never failed and
+a gate that cannot fail look identical from outside.
 
 ### 6.6 CI yml forbidden steps (P045/P046)
 NEVER add these to push-triggered CI:
