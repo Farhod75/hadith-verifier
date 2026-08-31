@@ -2955,5 +2955,5 @@ message defect was identical and shipped from the same backport.
 **Rule:** a gate's success message must state what was verified.
 
 **Related:** P123, P131, P129–P132
-
+**Commit:** fef51be
 **Status:** FIXED — message corrected
