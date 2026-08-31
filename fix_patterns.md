@@ -2934,3 +2934,26 @@ value must not itself be a shape that defeats the fallback.
 work this completes)
 
 **Status:** FIXED
+
+## ════════════════════════════════════════════════════════
+## PATTERN 136: A gate that lexed instead of checking
+## ════════════════════════════════════════════════════════
+**ID:** P136
+**Type:** Gate integrity — a success message wider than the check behind it
+**Files:** .githooks/pre-push
+**Commit:** <this commit>
+
+**Full pattern in hadith-reels/fix_patterns.md.** HR's PowerShell branch
+reported `✅ PowerShell OK` on a script broken by a comment placed after a
+line-continuation backtick — valid tokens, dead statement. HV carries the same
+message from the P131 backport and the same overstatement.
+
+**Applied here:** message only, now `✅ PowerShell parses (not executed)`. The
+continuation-backtick scan is HR-only; HV has no render scripts, but the
+message defect was identical and shipped from the same backport.
+
+**Rule:** a gate's success message must state what was verified.
+
+**Related:** P123, P131, P129–P132
+
+**Status:** FIXED — message corrected

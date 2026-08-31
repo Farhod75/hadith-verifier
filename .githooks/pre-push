@@ -116,7 +116,7 @@ if [ "$HAS_PS1" -gt 0 ] && [ $FAILED -eq 0 ]; then
       fi
     done
   fi
-  [ $FAILED -eq 0 ] && echo "✅ PowerShell OK"
+    [ $FAILED -eq 0 ] && echo "✅ PowerShell parses (not executed)"
 fi
 
 # ── JSON changed → must parse (P123) ─────────────────────────────────────────
