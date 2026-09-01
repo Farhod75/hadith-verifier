@@ -25,7 +25,7 @@ from datetime import datetime
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 REPO = "Farhod75/hadith-verifier"
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-sonnet-5"
 GITHUB_API = "https://api.github.com"
 
 # Files the agent is allowed to modify
@@ -218,7 +218,9 @@ Respond ONLY with this JSON (no markdown, no backticks):
         messages=[{"role": "user", "content": user_message}]
     )
 
-    raw = response.content[0].text
+        # P140: sonnet-5 emits a thinking block first; content[0] is not the text.
+    _text = next((b for b in response.content if b.type == "text"), None)
+    raw = _text.text if _text else ""
     print(f"[Agent] Claude response received ({len(raw)} chars)")
 
     # Step 4: Parse fix

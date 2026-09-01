@@ -29,15 +29,15 @@ Write-Host "Files copied" -ForegroundColor Cyan
 
 # ─── Step 3: Update model in playwright_agent.py ────────────
 (Get-Content "agents\playwright_agent.py") `
-  -replace 'claude-sonnet-4-20250514', 'claude-sonnet-4-6' |
+  -replace 'claude-sonnet-4-20250514', 'claude-sonnet-5' |
   Set-Content "agents\playwright_agent.py"
-Write-Host "Model updated to claude-sonnet-4-6 in agent" -ForegroundColor Cyan
+Write-Host "Model updated to claude-sonnet-5 in agent" -ForegroundColor Cyan
 
 # ─── Step 4: Update model in route.ts ───────────────────────
 (Get-Content "app\api\analyze\route.ts") `
-  -replace 'claude-sonnet-4-20250514', 'claude-sonnet-4-6' |
+  -replace 'claude-sonnet-4-20250514', 'claude-sonnet-5' |
   Set-Content "app\api\analyze\route.ts"
-Write-Host "Model updated to claude-sonnet-4-6 in route.ts" -ForegroundColor Cyan
+Write-Host "Model updated to claude-sonnet-5 in route.ts" -ForegroundColor Cyan
 
 # ─── Step 5: Git add + commit + push ────────────────────────
 git add agents\ .github\workflows\auto-fix.yml tests\audit.spec.ts app\api\analyze\route.ts

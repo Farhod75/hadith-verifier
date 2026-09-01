@@ -89,7 +89,10 @@ JSON only, no preamble.`
 
   const fallback = { intent: 'unknown', search_query: transcript, lang }
 
-  const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    // P140: never index content blocks by position. sonnet-5 emits a thinking
+  // block first, so content[0] is not the answer and this fell through to ''.
+  const textBlock = message.content.find((b: any) => b.type === 'text')
+  const raw = textBlock ? (textBlock as any).text : ''
   if (!raw.trim()) {
     console.warn('voice-intent: model returned no text block')
     return NextResponse.json(fallback)
