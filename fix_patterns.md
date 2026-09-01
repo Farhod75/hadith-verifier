@@ -2948,9 +2948,14 @@ reported `✅ PowerShell OK` on a script broken by a comment placed after a
 line-continuation backtick — valid tokens, dead statement. HV carries the same
 message from the P131 backport and the same overstatement.
 
-**Applied here:** message only, now `✅ PowerShell parses (not executed)`. The
-continuation-backtick scan is HR-only; HV has no render scripts, but the
-message defect was identical and shipped from the same backport.
+**Applied here, 2026-09-01:** message corrected, AND the continuation-backtick
+scan added. The scan was initially skipped as HR-only, on the reasoning that HV
+has no render scripts — but HV has `setup_agent.ps1`, and that script uses
+backtick continuations on lines 31 and 38. The gap was real, just smaller.
+
+Proven the same way: a comment inserted at line 32, directly after line 31's
+backtick. Result: `❌ setup_agent.ps1:32 comment after a line-continuation
+backtick`, push blocked. Restored, hook shipped alone.
 
 **Rule:** a gate's success message must state what was verified.
 
