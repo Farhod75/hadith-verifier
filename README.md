@@ -161,7 +161,10 @@ hadith-verifier/
 │       ├── analyze/route.ts        — Claude API + severity scoring
 │       ├── dua/route.ts            — Dua corrector
 │       ├── queue/route.ts          — Supabase admin queue
-│       └── tts/route.ts            — ElevenLabs TTS proxy
+│       ├── search/route.ts         — hadith library search
+│       ├── test/route.ts           — health check
+│       ├── tts/route.ts            — ElevenLabs TTS proxy
+│       └── voice-intent/route.ts   — voice command routing
 ├── components/
 │   ├── SpeechInput.tsx             — Web Speech API STT
 │   └── TTSPlayer.tsx               — ElevenLabs TTS + reciter picker
@@ -170,11 +173,18 @@ hadith-verifier/
 ├── agents/
 │   └── playwright_agent.py         — auto-fix agent
 ├── tests/
-│   ├── api.spec.ts
-│   ├── severity.spec.ts
-│   ├── hadith-verifier.spec.ts
 │   ├── accessibility.spec.ts
+│   ├── analytics.spec.ts
+│   ├── api.spec.ts
+│   ├── audit.spec.ts
+│   ├── hadith-verifier.spec.ts
+│   ├── language-speech.spec.ts    — @real-api, not in push CI
+│   ├── search.spec.ts
+│   ├── severity.spec.ts
+│   ├── tts.spec.ts
+│   ├── fixtures/test-data.ts
 │   └── python/
+│       ├── conftest.py
 │       └── test_analyze_api.py
 ├── .github/workflows/
 │   ├── ci.yml
@@ -214,15 +224,22 @@ BASE_URL=https://hadithverifier.com pytest test_analyze_api.py -v
 
 ### Test suite status
 
-| Suite | File | Tests | Status |
-|---|---|---|---|
-| Playwright API | api.spec.ts | 16 | ✅ Passing |
-| Playwright Severity | severity.spec.ts | 18 | ✅ Passing |
-| Playwright UI | hadith-verifier.spec.ts | 80 | ✅ Passing |
-| Playwright Accessibility | accessibility.spec.ts | 30 | ✅ Passing |
-| Playwright Audit | audit.spec.ts | 48 | ✅ Passing |
-| Python pytest | test_analyze_api.py | 46 | ✅ Passing |
-| **Total** | | **238** | **All passing** |
+| Suite | File | Tests |
+|---|---|---|
+| API | api.spec.ts | |
+| Severity | severity.spec.ts | |
+| UI | hadith-verifier.spec.ts | |
+| Accessibility | accessibility.spec.ts | |
+| Analytics | analytics.spec.ts | |
+| Audit | audit.spec.ts | |
+| Search | search.spec.ts | |
+| TTS | tts.spec.ts | |
+| Language/Speech | language-speech.spec.ts | @real-api — excluded from push CI |
+| **Playwright total** | 9 files | **142** (chromium) · 284 across chromium + firefox |
+| Python pytest | tests/python/test_analyze_api.py | |
+
+Counts are from `npx playwright test --list --project=chromium`. CI runs a
+matrix of chromium and firefox, so the CI figure is double the chromium count.
 
 ---
 
@@ -235,7 +252,7 @@ BASE_URL=https://hadithverifier.com pytest test_analyze_api.py -v
 - **Web Speech API** (STT + TTS browser fallback)
 - **Python** + Telegram Bot API
 - **Vercel** (web app) + **Railway** (Telegram bot)
-- **Playwright** + **pytest** (238 tests)
+- **Playwright** + **pytest** (142 Playwright tests, chromium)
 - **GitHub Actions** CI/CD + Auto-Fix Agent
 
 ---
@@ -245,7 +262,7 @@ BASE_URL=https://hadithverifier.com pytest test_analyze_api.py -v
 | Agent | File | Trigger | Purpose |
 |---|---|---|---|
 | Auto-Fix | agents/playwright_agent.py | CI test failure | Auto-PRs fixes for failing tests |
-| Doc Agent | agents/doc_agent.py | Merge to main | Updates CHANGELOG + FEATURES |
+
 
 ---
 
@@ -253,6 +270,8 @@ BASE_URL=https://hadithverifier.com pytest test_analyze_api.py -v
 
 - `text-gray-400` hint text has color contrast ratio 2.53:1 (below 4.5:1 WCAG 2.1 AA)
 - Web Speech API not supported in Firefox (STT/TTS buttons hidden automatically)
+- `tests/audit.spec.ts` and `tests/audit_spec.ts` both exist — hyphen and
+  underscore, same name. One is likely dead; not yet investigated.
 
 ---
 
