@@ -2962,3 +2962,47 @@ backtick`, push blocked. Restored, hook shipped alone.
 **Related:** P123, P131, P129–P132
 **Commit:** fef51be
 **Status:** FIXED — message corrected
+
+## ════════════════════════════════════════════════════════
+## PATTERN 140: Reading the first content block
+## ════════════════════════════════════════════════════════
+**ID:** P140
+**Type:** API contract — a positional assumption plus a silent default
+**Files:** app/api/voice-intent/route.ts, agents/playwright_agent.py,
+           telegram_bot.py, setup_agent.ps1
+**Commit:** 2a4f458
+
+**Full pattern in hadith-reels/fix_patterns.md.** `response.content` is an ARRAY
+OF BLOCKS. sonnet-5 returns a thinking block first, so `content[0]` is not the
+answer. Found in HR when `/api/generate-reel` returned 200 with every field
+empty after 14.6 seconds of generation.
+
+**Applied here:**
+
+  - `app/api/voice-intent/route.ts` — read `content[0]` and defaulted to `''`
+    on anything else. LIVE IN PRODUCTION on sonnet-5, so this was silently
+    discarding real responses. Now filters by type.
+  - `agents/playwright_agent.py` — `response.content[0].text`, positional.
+    Now `next((b for b in response.content if b.type == "text"), None)`.
+  - `agents/playwright_agent.py` and `telegram_bot.py` — model strings still on
+    `claude-sonnet-4-6`.
+  - `setup_agent.ps1` — REWRITES both of the above to `claude-sonnet-4-6` on
+    every run, so it would have silently undone this fix. Its `Write-Host`
+    confirmations named the old version too.
+
+**`telegram_bot.py` was already correct** on the block read —
+`next((b for b in message.content if b.type == "text"), None)` — which is the
+form the others should have used. One file had the right pattern and it did not
+propagate.
+
+**Bearing on P129.** P129 attributes the empty 500 on `/api/voice-intent` to
+the retired model string. That route also carried THIS defect. Whichever caused
+the original outage, the positional read was present and produces the same
+silent failure — worth knowing when reading P129's root cause.
+
+**Rule:** when an API returns a list, never assume the item you want is first.
+An unrecognised shape must fail loudly, not default to empty-but-valid.
+
+**Related:** P129, P136 (a gate whose message was wider than its check)
+
+**Status:** FIXED
