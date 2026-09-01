@@ -115,7 +115,23 @@ if [ "$HAS_PS1" -gt 0 ] && [ $FAILED -eq 0 ]; then
         if [ $? -ne 0 ]; then echo "❌ PowerShell parse error in $f"; FAILED=1; fi
       fi
     done
+    # P136: tokenizing proves the file lexes, not that it runs. A line ending in
+    # a backtick continues the statement; if the next line is a comment, the
+    # continuation dies and one statement silently becomes two. That lexes clean.
+    # Shipped in HR's make-kids-reel.ps1 2026-08-31 and passed this gate twice.
+    for f in $(echo "$CHANGED_FILES" | grep -E "$PS1_PATTERNS"); do
+      if [ -f "$f" ]; then
+        hits=$(awk 'prev && /^[[:space:]]*#/ { print NR } { prev = /`[[:space:]]*$/ }' "$f")
+        if [ -n "$hits" ]; then
+          for ln in $hits; do
+            echo "❌ $f:$ln comment after a line-continuation backtick (breaks the statement)"
+          done
+          FAILED=1
+        fi
+      fi
+    done
   fi
+      
     [ $FAILED -eq 0 ] && echo "✅ PowerShell parses (not executed)"
 fi
 
