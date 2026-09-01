@@ -224,22 +224,21 @@ BASE_URL=https://hadithverifier.com pytest test_analyze_api.py -v
 
 ### Test suite status
 
-| Suite | File | Tests |
+| Suite | File | Tests (chromium) |
 |---|---|---|
-| API | api.spec.ts | |
-| Severity | severity.spec.ts | |
-| UI | hadith-verifier.spec.ts | |
-| Accessibility | accessibility.spec.ts | |
-| Analytics | analytics.spec.ts | |
-| Audit | audit.spec.ts | |
-| Search | search.spec.ts | |
-| TTS | tts.spec.ts | |
-| Language/Speech | language-speech.spec.ts | @real-api — excluded from push CI |
-| **Playwright total** | 9 files | **142** (chromium) · 284 across chromium + firefox |
-| Python pytest | tests/python/test_analyze_api.py | |
+| API | api.spec.ts | 21 |
+| Severity | severity.spec.ts | 19 |
+| UI | hadith-verifier.spec.ts | 15 |
+| Accessibility | accessibility.spec.ts | 15 |
+| Analytics | analytics.spec.ts | 4 |
+| Audit | audit.spec.ts | 29 |
+| Search | search.spec.ts | 7 |
+| TTS | tts.spec.ts | 9 |
+| Language/Speech | language-speech.spec.ts | 23 — `@real-api`, excluded from push CI |
+| **Playwright total** | 9 files | **142** (284 across the chromium + firefox CI matrix) |
 
-Counts are from `npx playwright test --list --project=chromium`. CI runs a
-matrix of chromium and firefox, so the CI figure is double the chromium count.
+Counts from `npx playwright test --list --project=chromium`.
+`tests/python/test_analyze_api.py` runs separately under pytest.
 
 ---
 
