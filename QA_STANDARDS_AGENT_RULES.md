@@ -403,8 +403,13 @@ Copy-Item "QA_STANDARDS_AGENT_RULES.md" `
 - Accessibility: WCAG 2.1 AA minimum, AAA preferred
 
 ---
-*Last updated: May 2026 · Farhod Elbekov · ISTQB CT-AI #26-CT-AI-00063-USA*
-*Next review: June 2026*
+*Original document, May 2026 · Farhod Elbekov · ISTQB CT-AI #26-CT-AI-00063-USA*
+
+> **Everything below this line was appended later and is equally binding.**
+> Flagged 2026-10-01: this footer used to read "Last updated: May 2026 / Next
+> review: June 2026" in the MIDDLE of the file, which made every rule after it
+> look like it sat outside the document. Section numbers also reopen out of
+> order from here. Read to the end.
 ## ════════════════════════════════════════════════════════
 ## ADDENDUM TO QA_STANDARDS_AGENT_RULES.md
 ## Section 6 additions — CI workflow rules (P044, P045)
@@ -597,10 +602,12 @@ This gives video + DOM + network log of exact failure moment.
 Eliminates all guessing about what the page looked like during failure.
 
 ## ════════════════════════════════════════════════════════
-## SECTION 9 UPDATE: TTS and audio quality rules (NEW)
+## SECTION 9 (continued) — TTS and audio quality
+## Renumbered 2026-10-01: these were 9.1-9.3, the SAME numbers as the
+## HV/HR/Idris override subsections above. Two different 9.1s in one file.
 ## ════════════════════════════════════════════════════════
 
-### 9.1 TTS voice quality by language
+### 9.4 TTS voice quality by language
 | Language | Primary | Fallback | Quality |
 |---|---|---|---|
 | AR | ElevenLabs Hijazi/Abu Salem | ar-SA browser | High |
@@ -609,16 +616,103 @@ Eliminates all guessing about what the page looked like during failure.
 | UZ | ElevenLabs multilingual | uz-UZ browser | Medium |
 | TJ | ElevenLabs (ru voice) | ru-RU browser | Low — no native TJ |
 
-### 9.2 Tajik narration — real voice recommendation
+### 9.5 Tajik narration — real voice recommendation
 ElevenLabs has no native Tajik voice. Options for authentic TJ narration:
 1. islamhouse.com — free Tajik Islamic audio (CC licensed)
 2. Custom ElevenLabs voice clone from real Tajik scholar recording
 3. Phase 4: integrate a Tajik TTS API (e.g. SalomAI by Uzbek/Tajik teams)
 Current acceptable behavior: ru-RU voice for TJ (sounds Russian — acceptable)
 
-### 9.3 Text sanitization before TTS (mandatory)
+### 9.6 Text sanitization before TTS (mandatory)
 sanitizeForTTS() must be called before ANY TTS provider:
 - ElevenLabs API call
 - Browser SpeechSynthesis
 - Any future TTS provider
 Strips: URLs, bullets, hadith refs, markdown, tier labels, excess whitespace
+
+## ════════════════════════════════════════════════════════
+## SECTION 10: VERIFICATION DISCIPLINE
+## Source: self-audit 2026-09-29, HR session — eight failures, one cause
+## ════════════════════════════════════════════════════════
+
+Every failure below is the same error: an assistant stating a repo fact from
+recollection instead of reading it. Each one cost the operator turns, tokens,
+or nearly a wrong edit to correct code.
+
+### 10.1 Never state a filename or path from memory
+Asserted `scripts/source_hadeethenc.py`. Real path: `scripts/lib/source_hadeethenc.py`.
+Three turns lost, and a WRONG "correction" was applied to a fix_patterns entry
+that had been right all along, then reverted.
+→ `Get-ChildItem scripts\*.py` costs one line. Run it.
+
+### 10.2 Never cite a pattern ID without reading the pattern
+Claimed "P162/P168 superseded step 14, the nasheed picker is automated."
+Neither pattern exists in that role. The picker is still
+`($nasheeds | Get-Random)` when `-Nasheed` is omitted, and P117 added a GATE,
+not a picker. Raised twice, nearly deleted correct guidance.
+→ If you cannot quote the pattern, say "unverified" and go read it.
+
+### 10.3 A file's header comment is a summary, not the source
+Read `lib/tags.ts`'s header instead of P150 itself, and framed the defect
+wrong as a result — proposed edits on a premise that did not hold.
+→ When a comment cites a pattern, the pattern is the source of truth.
+
+### 10.4 Read the test before editing the code it covers
+Wrote six adapter edits, then read `test_source_hadeethenc.py`. Its AR_PAYLOAD
+fixture — real captured data — proved the strip logic silently did nothing on
+the shape it was written for. The test documents the contract AND the real
+payload shapes. Reading it first would have caught the bug before any paste.
+→ Target file and its test are one read, not two steps.
+
+### 10.5 Build the commit file list from the docs you wrote
+Staged seven files for a commit whose own CHANGELOG entry described P180 in
+`app/admin/page.tsx` — which was not in the list. The commit shipped claiming
+a fix whose code sat uncommitted. Required an amend.
+→ Every file named in the fix_patterns and CHANGELOG entries gets staged.
+
+### 10.6 An empty result is a claim about the query, not only the data
+`git grep -n "^\*\*ID:\*\* P17[5-9]|^\*\*ID:\*\* P18[0-9]"` returned nothing and
+was read as "no entries exist." git grep uses BASIC regex — the `|` matched a
+literal pipe and could never hit. Needs `-E`.
+→ Before concluding a search found nothing, verify the search could have found
+something. Run it against a value known to exist.
+
+### 10.7 Never state a database value without querying it
+Claimed "#2654's set is tagged kabair" from recollection of an SQL patch.
+The actual query returned ~150 distinct tags, 53 of them unmapped — a defect
+53× larger than the one asserted, and visible in already-published captions.
+→ `select distinct unnest(tags) from hadith_library` is one query.
+
+### 10.8 Ask for the whole file instead of grepping it in pieces
+Walked `source_hadeethenc.py` in four separate greps across four turns. The
+operator has to paste each one. He said so directly: *"you can ask me if you
+don't have access to full file i can attach it and it will be easier."*
+→ More than two greps into the same file means ask for the file.
+
+### 10.10 Read the live repo at session start, not the attached copies
+The docs attached to the Claude project are SNAPSHOTS and they go stale
+silently. On 2026-10-01 the attached `reel-tracker.md` was at R037 while the
+repo was at R097 — sixty-four reels behind — and the attached `render-reel.ps1`
+still had the random nasheed picker that P162/P168/P170 replaced. Reading a
+stale copy carefully makes you MORE confidently wrong, not less.
+→ At session start, read from the repo. Treat an attached copy as a hint about
+  which file to open, never as the file. If the repo is not reachable, say the
+  claim is from a snapshot of unknown age, in the same sentence as the claim.
+
+### 10.11 Do not add a step to an established workflow without checking it
+Three failures in one session, all this shape: proposing to swap the ﷺ glyph
+before TTS on a reel whose predecessor had already narrated it fine; asking for
+a file listing the previous reel had already established; writing S/M/H blocks
+by hand that the admin page generates. Each cost a turn and read as invention
+because it WAS invention — a new step justified by a risk nobody had measured.
+→ When a workflow has run before, the previous run is the specification. Check
+  what it did before proposing anything it did not do. "This might break" is a
+  reason to look at the last run, not a reason to add a step.
+
+### 10.9 The rule behind all of them
+State a repo fact ONLY from something read this session: a file, a query
+result, a command's output. A prior session's summary, a compaction note, and
+this assistant's own earlier message are RECOLLECTION, not sources. When
+recollection is all there is, say so in the same sentence as the claim.
+Corollary: the operator's own recollection is also recollection — when he
+says "I think we documented that," read it before agreeing OR disagreeing.

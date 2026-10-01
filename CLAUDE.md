@@ -1,7 +1,7 @@
 # CLAUDE.md
 # Project constitution for hadith-verifier
 # Auto-loaded by Claude Code on every session
-# Last updated: 2026-05-17
+# Last updated: 2026-10-01
 
 ---
 
@@ -13,6 +13,31 @@
 **Live:** https://hadithverifier.com
 **Repo:** github.com/Farhod75/hadith-verifier
 **Built as:** sadaqah jariyah — free, no ads, for the Muslim community
+---
+## 🔎 START OF SESSION — READ THE REPO, NOT A COPY OF IT
+
+**Docs attached to a Claude project are stale snapshots.** On 2026-10-01 the
+HR project folder held a `reel-tracker.md` at R037 against a repo at R097, and
+a `render-reel.ps1` with a picker three patterns out of date. A stale copy read
+carefully produces confident wrong answers. The same hazard exists INSIDE this
+repo: `agents/knowledge/fix_patterns.md` is a frozen duplicate stopping at P080
+while the real `fix_patterns.md` is at P140. Read the root one.
+
+Before the first substantive step of a session, read from THIS REPO:
+
+1. `CLAUDE.md` (this file) — constitution and environment
+2. `fix_patterns.md` — **tail only**, for the current P number
+3. `QA_STANDARDS_AGENT_RULES.md` Section 10 — verification discipline
+4. `FEATURES.md` / `README.md` — what actually ships
+
+**P-numbers are ONE sequence across HV and hadith-reels.** HR holds the frontier
+(P186 as of 2026-10-01); HV's own file tops out at P140. Read HR's
+`fix_patterns.md` tail before authoring a new pattern — never guess the next
+number, and never assume a split by repo.
+
+If a doc is wrong, fix it in the repo in that session. Reporting staleness is
+not the deliverable; the corrected doc is.
+
 ---
 ## 📝 DOCUMENTATION DISCIPLINE (STRICT — applies to HV + HR)
 **EVERY fix, update, or enhancement MUST be documented in the same session it ships.**
@@ -28,6 +53,11 @@
 **On this machine, PowerShell file-API writes to repo files are silently REVERTED**
 (`Set-Content`, `Add-Content`, `[System.IO.File]::WriteAllBytes`/`WriteAllText`).
 The write appears to succeed, but git reads the OLD content and the change never persists.
+**[2026-10-01] A second path works: Claude's device file-commit.** When a session
+has this folder granted, Claude writing the file directly is NOT intercepted —
+verified end to end that day across thirteen files in hadith-reels, with
+`git diff --numstat` confirming each change landed. The PowerShell file-API
+restriction still stands for everything else.
 Likely cause: antivirus controlled-folder-access or a sync/backup tool intercepting writes.
 - **FIX: edit repo files in VS Code** (its save path is NOT intercepted) — never via PowerShell file APIs.
 - Symptom: `git hash-object <file>` returns the SAME sha as HEAD after you "wrote" changes; `git status` says clean despite a changed file.
@@ -165,7 +195,11 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
 
 ### Documentation
 - `QA_STANDARDS.md` — testing standards (this file's source of truth for QA rules)
-- `FIX_PATTERNS.md` — 32+ patterns (P001-P032)
+- `fix_patterns.md` — 140 patterns as of 2026-10-01, ONE sequence shared with
+  hadith-reels (which holds the frontier). Lowercase filename; the uppercase
+  `FIX_PATTERNS.md` referenced elsewhere in this file does not exist.
+- `agents/knowledge/fix_patterns.md` — ⚠ FROZEN DUPLICATE, stops at P080.
+  Do not read it for the current state; it is a snapshot, not the file.
 - `ABOUT.md` — developer context
 
 ---
@@ -174,7 +208,8 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
 
 ```bash
 # 1. Read constitution
-cat CLAUDE.md QA_STANDARDS.md FIX_PATTERNS.md
+cat CLAUDE.md QA_STANDARDS.md
+tail -200 fix_patterns.md   # tail only - the file is large; you want the frontier
 
 # 2. Check repo state
 git status
@@ -194,11 +229,12 @@ npm run test:smoke
 
 ### Workflow A — Fix a bug
 1. Reproduce locally first
-2. Search FIX_PATTERNS.md for similar pattern (P001-P032)
+2. Search fix_patterns.md for a similar pattern (P001-P140 here; HR holds the
+   frontier above that)
 3. Write Playwright OR pytest test that reproduces it
 4. Apply fix
 5. Run: `npm run test` + `pytest tests/pytest`
-6. Update FIX_PATTERNS.md if novel
+6. Update fix_patterns.md if novel
 7. Commit: `fix: description [P0XX]`
 8. Push → Vercel auto-deploys
 9. Verify on hadithverifier.com prod
