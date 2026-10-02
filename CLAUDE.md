@@ -9,7 +9,12 @@
 
 **Developer:** Farhod Elbekov — SDET / AI QA Engineer, Charlotte NC
 **Stack:** Next.js 14 + TypeScript + Anthropic Claude API + Supabase + Vercel + Tailwind
-**Tests:** 180 Playwright (TS) + 36 pytest (Python) — CT-GenAI aligned
+**Tests:** 142 Playwright (TS) + 68 pytest (Python) — CT-GenAI aligned.
+Counted 2026-10-02 from `npx playwright test --list` and
+`pytest --collect-only`, replacing 180 + 36 which matched nothing. The
+Playwright suite runs on TWO projects, chromium and firefox, so a full
+run is 284 executions of those 142 tests — quote whichever number you
+mean, and say which.
 **Live:** https://hadithverifier.com
 **Repo:** github.com/Farhod75/hadith-verifier
 **Built as:** sadaqah jariyah — free, no ads, for the Muslim community
@@ -255,8 +260,8 @@ npm run test:smoke
 ### Workflow D — CI Pipeline
 - `.github/workflows/ci.yml` runs on every push:
   - TypeScript check
-  - 180 Playwright tests
-  - 36 pytest tests
+  - 142 Playwright tests × 2 projects (chromium, firefox) = 284 runs
+  - 68 pytest tests
   - axe-core accessibility scan
   - References URL validation (all must 200 OK)
 - BLOCKS deploy if red.

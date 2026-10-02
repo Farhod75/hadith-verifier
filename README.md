@@ -251,7 +251,8 @@ Counts from `npx playwright test --list --project=chromium`.
 - **Web Speech API** (STT + TTS browser fallback)
 - **Python** + Telegram Bot API
 - **Vercel** (web app) + **Railway** (Telegram bot)
-- **Playwright** + **pytest** (142 Playwright tests, chromium)
+- **Playwright** + **pytest** — 142 Playwright tests across 9 specs, run on
+  chromium and firefox (284 executions), plus 68 pytest tests
 - **GitHub Actions** CI/CD + Auto-Fix Agent
 
 ---
