@@ -35,10 +35,15 @@ Before the first substantive step of a session, read from THIS REPO:
 3. `QA_STANDARDS_AGENT_RULES.md` Section 10 — verification discipline
 4. `FEATURES.md` / `README.md` — what actually ships
 
-**P-numbers are ONE sequence across HV and hadith-reels.** HR holds the frontier
-(P186 as of 2026-10-01); HV's own file tops out at P140. Read HR's
-`fix_patterns.md` tail before authoring a new pattern — never guess the next
-number, and never assume a split by repo.
+**P-numbers are ONE sequence across HV and hadith-reels.** HR holds the frontier.
+Read the last `## PATTERN n` heading in HR's `fix_patterns.md` before authoring a
+new pattern, rather than any number cached in this file. This line used to cache
+one, and by 2026-10-15 it was sixty patterns behind — two weeks stale — while
+the daily doc-drift check meant to catch it was reporting into a session with no
+notification configured. A frontier written down here is wrong within days, so do
+not write one down: HR's `scripts/audit-docs.py` now FAILS on a cached frontier
+found in this file. HV's own file tops out at P140. Never guess the next number,
+and never assume a split by repo.
 
 If a doc is wrong, fix it in the repo in that session. Reporting staleness is
 not the deliverable; the corrected doc is.
