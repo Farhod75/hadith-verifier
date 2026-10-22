@@ -3006,3 +3006,44 @@ An unrecognised shape must fail loudly, not default to empty-but-valid.
 **Related:** P129, P136 (a gate whose message was wider than its check)
 
 **Status:** FIXED
+## ════════════════════════════════════════════════════════
+## PATTERN 291: A health check for a route that never existed
+## ════════════════════════════════════════════════════════
+
+HR's `CLAUDE.md` step 4 — the session pre-flight — ran:
+
+```
+curl -s https://hadithverifier.com/api/health | jq
+```
+
+There is no `app/api/health` in this repo and nothing here references the path.
+Probed 2026-10-22: `/` returns 200, `/api/health` returns 404. So the pre-flight
+has reported a failing upstream on every session since the checklist was
+written, and the failure was the checklist. A check that always fails is read
+as noise within a week and then stops being read at all, which is the same
+shape as P119/P126/P185 — a check with no caller — inverted: a caller with no
+check.
+
+**Built.** `app/api/health/route.ts` answers one question: is this deployment
+serving AND can it reach Supabase. A `head` + `count: exact` select on
+`hadith_library` is the cheapest round trip that proves the database actually
+answered rather than that the client object constructed. `{ status, db, ms }`,
+503 when degraded.
+
+**It reports no environment detail** — no URL, no key length, no whether an
+integration is configured — because it is unauthenticated and public.
+
+**Removed in the same change: `app/api/test/route.ts`.** It returned `hasSlack`
+and `slackStart`, the first 30 characters of `SLACK_WEBHOOK_URL`. Thirty stops
+short of the token — `https://hooks.slack.com/services/` is 33 — so no
+credential was exposed, but it confirmed to any caller that a webhook is
+configured, and it existed only to answer a question the Vercel env panel
+answers. A debug route reachable without auth on a production domain is a
+surface kept for no reason.
+
+**Rule:** a health endpoint reports liveness, not configuration. If a check
+needs to know what is configured, it needs authentication, not a public route.
+
+**Related:** P119, P126, P185 (a check with no caller)
+
+**Status:** FIXED
