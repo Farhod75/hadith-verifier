@@ -16,16 +16,23 @@ on:
 jobs:
   test:
     name: Playwright Tests
-    runs-on: ubuntu-latest
+    # PINNED, NOT `ubuntu-latest` (P314). On 2026-10-19 GitHub began moving the
+    # `ubuntu-latest` label to Ubuntu 26.04, choosing the image AT RANDOM per run
+    # until 2026-11-19 (actions/runner-images#14748). The Playwright this repo
+    # locks (1.59.1) has no Ubuntu 26 support, so `playwright install` exited 1
+    # before the first test and run #213 died in 23s against a 3-4 min baseline.
+    # A floating label is an undeclared dependency on somebody else's release
+    # schedule. Bump deliberately, after checking the toolchain; never by drift.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -58,7 +65,7 @@ jobs:
       # Run manually after deploy to verify TTS/STT on production
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
@@ -66,7 +73,7 @@ jobs:
           retention-days: 30
 
       - name: Upload screenshots on failure
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-screenshots
@@ -76,17 +83,18 @@ jobs:
   # ── Audit job — only runs on manual workflow_dispatch with run_audit=true
   audit:
     name: Post-Deploy Audit (manual only)
-    runs-on: ubuntu-latest
+    # Pinned for the same reason as the test job above (P314).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_audit == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -102,7 +110,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Upload audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-report

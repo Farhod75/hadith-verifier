@@ -12,7 +12,10 @@ jobs:
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.head_branch == 'main'
 
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest` (P314) - same reason as ci.yml. This job does
+    # not install browsers, so the Ubuntu 26 migration would not have broken it,
+    # but it is the same undeclared dependency on GitHub's release schedule.
+    runs-on: ubuntu-24.04
 
     permissions:
       contents: write      # push fix branch
@@ -21,13 +24,13 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0   # full history for git log
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -43,7 +46,7 @@ jobs:
 
       - name: Upload agent log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: agent-log-${{ github.run_id }}
           path: agents/logs/

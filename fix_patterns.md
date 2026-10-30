@@ -3047,3 +3047,60 @@ needs to know what is configured, it needs authentication, not a public route.
 **Related:** P119, P126, P185 (a check with no caller)
 
 **Status:** FIXED
+
+---
+
+## PATTERN 314: `ubuntu-latest` is not a version, and the runner moved under us
+
+**HV instance. Same number as hadith-reels on purpose** - CLAUDE.md: one global
+P-sequence, and the same P-number is the same fix in both repos. The full
+root-cause analysis lives in `hadith-reels/fix_patterns.md` under P314; what
+follows is what was different here.
+
+**Found:** 2026-10-29, while fixing the same failure in hadith-reels.
+
+**Symptom:** run #213 (2026-10-22, commit 71e5f00) failed in 23s against a 3-4
+minute green baseline, with NO `playwright-report/` and no `test-results/`
+artifact - so not one test ever ran. The commit it landed on added a real
+`/api/health` and removed the public `/api/test` route (P291), which made this
+look like a code failure. It was not. Nothing in this repo was wrong.
+
+**Root cause:** identical to HR. On 2026-10-19 GitHub began migrating the
+`ubuntu-latest` label to Ubuntu 26.04, picking the image AT RANDOM per run until
+2026-11-19 (actions/runner-images#14748). `@playwright/test` is declared here as
+`^1.44.0`, but the LOCKFILE is what `npm ci` installs and it resolves to 1.59.1.
+The string `ubuntu26` does not appear anywhere in playwright-core 1.59.1: its
+platform table stops at `ubuntu24.04` while its clamp is `major < 26`, so 26.04
+falls through to an unsupported `ubuntu26.04-x64`. `npx playwright install
+--with-deps chromium` therefore exited 1 before the first test.
+
+**HV was exposed in THREE places, not one:** `test` and `audit` in ci.yml, and
+`auto-fix` in auto-fix.yml - all three on `ubuntu-latest`, with the browser
+install in two of them. Only `test` runs on push, which is why only it went red.
+
+**Fix:** all three jobs pinned to `ubuntu-24.04`, GitHub's own documented
+mitigation, each with the reason written beside it. `actions/checkout`,
+`actions/setup-node`, `actions/setup-python` and `actions/upload-artifact`
+bumped v4 -> v7; v4 was being force-run on Node 24 with a deprecation warning
+on every run. CI Node 20 -> 22, which is what the machine running the pre-push
+gate actually has, so CI no longer tests a major this project never runs locally.
+
+**Lesson - the one worth keeping:** the same platform drift hits every repo on
+the same day, but only the repo you push to tells you. HR went red 31 times and
+got noticed. HV went red exactly ONCE, on 10-22, and then sat unnoticed for a
+week because nothing was pushed to it - a quiet repo hides an environment
+defect instead of reporting it. After fixing an environment failure in one
+repo, check the sibling before closing the session. The blast radius of a
+platform change is every repo, not the one that shouted.
+
+**Deferred deliberately, same as HR:** `@playwright/test` stays at 1.59.1.
+1.61.0 is the first release that supports Ubuntu 26 (verified by reading its
+bundle: it carries both the apt dependency list and a real chromium build for
+`ubuntu26.04-x64`). The pin buys time; it does not remove the ceiling - when
+GitHub retires the `ubuntu-24.04` image this returns. Bumping Playwright moves
+the Chromium the whole suite runs against, so it is its own change with its own
+run, not a rider on this one.
+
+**Related:** P291 (the commit this failure was wrongly attributed to)
+
+**Status:** FIXED
