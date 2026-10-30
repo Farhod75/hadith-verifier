@@ -3104,3 +3104,37 @@ run, not a rider on this one.
 **Related:** P291 (the commit this failure was wrongly attributed to)
 
 **Status:** FIXED
+
+---
+
+## PATTERN 320: the gate looked forward and never behind
+
+**HV instance. Same number as hadith-reels on purpose** - CLAUDE.md: one global
+P-sequence, and the same P-number is the same fix in both repos. The full
+reasoning, including the addendum about placement, is in
+`hadith-reels/fix_patterns.md` under P320.
+
+**Ported 2026-10-30.** The pre-push hook here checked the code being pushed and
+knew nothing about whether the last push went green. What that cost in THIS
+repo is the part worth recording, because it is different from HR's:
+
+HR went red on 2026-10-22 and stayed red for 31 pushes - loud, and eventually
+noticed. **HV went red exactly ONCE, on the same day, and then went quiet for a
+week** - not because the failure was subtle, but because nothing was pushed to
+it. The run sat at #213 with a red X that nobody had reason to look at. It was
+found only because the operator mentioned in passing that GitHub was showing
+failures here too.
+
+That is the lesson this instance adds: a busy repo reports its own breakage
+through sheer traffic. A quiet repo hides it. The repo that needs this check
+most is the one you push to least - which is exactly the repo where nobody
+thinks to add it.
+
+**Fix.** The HR block, unchanged. It derives the slug from
+`git remote get-url origin`, which is why it ports with no edits. Placed BEFORE
+the doc-only exit, per the HR addendum: after it, the check never runs on a
+doc-only push, and most pushes here are docs. It discovers its own interpreter
+(`PY_BIN` is defined further down) and exits 1 directly (`FAILED` is not
+initialised yet).
+
+**Status:** FIXED
