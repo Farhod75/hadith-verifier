@@ -3,8 +3,19 @@
 // Fix: route maps lang → voiceId internally
 // P059: Text sanitization moved here (server-side) — strips URLs bullets etc.
 // Supports: en | uz | ar | ru | tj
+//
+// P366: this route spends ElevenLabs credit and takes requests from anyone - it
+// serves the public Listen buttons, so an admin session is the wrong gate.
+// What it now refuses:
+//   - a cross-origin browser request (another site using our key) -> 403
+//   - more than TTS_LIMIT calls per caller per window on one instance -> 429
+//   - a voiceId in the body: only the five voices below can be used. The
+//     legacy override let a caller name ANY voice on the account (P061 kept
+//     it for compatibility; TTSPlayer has not sent it since).
+// The 600-character cap after sanitising was already here and stays.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createLimiter, clientKey } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 
@@ -43,11 +54,31 @@ function sanitizeForTTS(text: string): string {
     .trim()
 }
 
+const TTS_LIMIT = 30                 // calls per caller per window, per instance
+const TTS_WINDOW_MS = 10 * 60 * 1000
+const limiter = createLimiter(TTS_LIMIT, TTS_WINDOW_MS)
+
+function crossOrigin(req: NextRequest): boolean {
+  const origin = req.headers.get('origin')
+  if (!origin) return false            // same-origin GET-style or a non-browser client
+  try { return new URL(origin).host !== req.headers.get('host') } catch { return true }
+}
+
 export async function POST(req: NextRequest) {
+  if (crossOrigin(req)) {
+    return NextResponse.json({ error: 'cross-origin request refused' }, { status: 403 })
+  }
+  const who = clientKey(req.headers)
+  if (!limiter.take(who)) {
+    return NextResponse.json(
+      { error: 'Too many listen requests - try again later.' },
+      { status: 429, headers: { 'Retry-After': String(limiter.retryAfter(who)) } }
+    )
+  }
   try {
     const body = await req.json().catch(() => null)
 
-    // P061: Accept EITHER lang (new) OR voiceId (legacy) in body
+    // P061: the route takes {text, lang}. P366: a voiceId in the body is ignored.
     if (!body || !body.text) {
       return NextResponse.json(
         { error: 'text is required' },
@@ -58,9 +89,8 @@ export async function POST(req: NextRequest) {
     const rawText = body.text as string
     const lang    = (body.lang || 'en') as string
 
-    // Resolve voiceId: explicit voiceId in body takes priority (legacy),
-    // otherwise map from lang
-    const voiceId = body.voiceId || VOICE_MAP[lang] || VOICE_MAP.en
+    // P366: the voice comes from the language only - never from the request.
+    const voiceId = VOICE_MAP[lang] || VOICE_MAP.en
 
     // P059: Sanitize text server-side
     const text = sanitizeForTTS(rawText).slice(0, 600)

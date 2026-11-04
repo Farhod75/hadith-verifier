@@ -3241,3 +3241,44 @@ before it - and here what ran before it had just shut it down.
 **Tripwire:** none - the hook is the check.
 
 **Status:** FIXED (pending the proof push)
+
+---
+
+## PATTERN 366: the public Listen route spent our ElevenLabs credit for anyone
+
+**HV only.** Number recorded in `hadith-reels/fix_patterns.md` too.
+
+**Found 2026-11-04** while closing P364: `/api/tts` takes `{text, lang}` from
+anyone and calls ElevenLabs with the project key. It has to stay public - it
+serves the Listen buttons on the analysis and the suggested comment - so the
+P364 admin session is the wrong gate. What was open:
+- any web page could call it from a visitor's browser (no Origin check);
+- nothing limited how often one caller could call it;
+- a legacy `voiceId` in the body (kept by P061 for compatibility) let a caller
+  name ANY voice on the account, cloned or premium ones included. `TTSPlayer`
+  has not sent it since P061.
+The 600-character cap after sanitising was already there.
+
+**Fix:**
+- cross-origin browser request -> 403 before anything else;
+- `lib/rate-limit.ts` (new): fixed window, 30 calls per caller per 10 minutes,
+  per server instance -> 429 with Retry-After. TTSPlayer already falls back to
+  the browser voice on any non-200, so a limited visitor still hears the text;
+- the voice comes from `lang` only; `voiceId` in the body is ignored.
+- Tests: four unit tests in `tests/tts.spec.ts` that call the handler directly
+  with the key removed (no network, no spend): same-origin passes to 503,
+  cross-origin 403, the 31st call 429 while another caller is unaffected, and
+  the limiter's window and key independence.
+
+**Limits of the fix:** the limiter is in memory, so each warm Vercel instance
+counts on its own and a cold start resets it. It stops a loop or a careless
+script, not a determined abuser rotating addresses. A global quota needs shared
+storage (Upstash or a Supabase table) - recorded as open.
+
+**Lesson:** a public route that spends money needs the same question P364 asked,
+answered differently: not "who may call it" but "how much can one caller make
+us spend".
+
+**Tripwire:** none.
+
+**Status:** FIXED (per-instance brake); global quota OPEN.

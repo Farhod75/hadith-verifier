@@ -184,6 +184,9 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
   Before 2026-11-04 it had no gate and used the service-role key: anyone could list,
   dismiss or delete flagged posts. A new route that reads `flagged_posts` or spends
   money and does not call it is the P364 defect again.
+- `app/api/tts/route.ts` — public (the Listen buttons), so NOT behind the admin session.
+  P366: cross-origin -> 403, 30 calls per caller per 10 min per instance -> 429
+  (`lib/rate-limit.ts`), voice from `lang` only. A global quota is still open.
 - `lib/admin-session.ts` — signed HttpOnly cookie `hv_admin` (12 h), set by
   `app/api/admin/verify/route.ts` on a correct `ADMIN_PASSWORD`, cleared by
   `app/api/admin/logout/route.ts`. `next dev` on localhost passes without it (the

@@ -7,6 +7,9 @@
 //   npx playwright test tests/tts.spec.ts --project=chromium
 
 import { test, expect, Page } from '@playwright/test'
+import { NextRequest } from 'next/server'
+import { POST as ttsPOST } from '../app/api/tts/route'
+import { createLimiter } from '../lib/rate-limit'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
 
@@ -190,5 +193,55 @@ test.describe('UI — Listen buttons call TTS with lang not voiceId', () => {
       expect(req.text).not.toMatch(/https?:\/\//)
       expect(req.lang).toBeDefined()
     }
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// P366 — unit tests: the route is called directly, no server, no network.
+// ELEVENLABS_API_KEY is removed for these, so a request that passes every
+// guard stops at 503 "not configured" and nothing is ever narrated.
+// ─────────────────────────────────────────────────────────────
+test.describe('TTS guards (P366) — unit', () => {
+  const env = process.env as Record<string, string | undefined>
+  const savedKey = env.ELEVENLABS_API_KEY
+  test.beforeEach(() => { delete env.ELEVENLABS_API_KEY })
+  test.afterEach(() => { if (savedKey === undefined) delete env.ELEVENLABS_API_KEY; else env.ELEVENLABS_API_KEY = savedKey })
+
+  function call(headers: Record<string, string>, body: Record<string, unknown> = { text: 'Hello', lang: 'en' }) {
+    return ttsPOST(new NextRequest('https://hadithverifier.com/api/tts', {
+      method: 'POST',
+      headers: { host: 'hadithverifier.com', 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    }))
+  }
+
+  test('same-origin request passes the guards (stops at the missing key)', async () => {
+    const res = await call({ origin: 'https://hadithverifier.com', 'x-forwarded-for': '198.51.100.1' })
+    expect(res.status).toBe(503)
+  })
+
+  test('cross-origin browser request is refused before anything else', async () => {
+    const res = await call({ origin: 'https://evil.example', 'x-forwarded-for': '198.51.100.2' })
+    expect(res.status).toBe(403)
+  })
+
+  test('the 31st call from one caller in the window gets 429 with Retry-After', async () => {
+    const ip = { 'x-forwarded-for': '198.51.100.3' }
+    for (let i = 0; i < 30; i++) expect((await call(ip)).status).toBe(503)
+    const res = await call(ip)
+    expect(res.status).toBe(429)
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0)
+    // another caller is unaffected
+    expect((await call({ 'x-forwarded-for': '198.51.100.4' })).status).toBe(503)
+  })
+
+  test('limiter: window resets, and keys are independent', () => {
+    const l = createLimiter(2, 1000)
+    expect(l.take('a', 0)).toBe(true)
+    expect(l.take('a', 10)).toBe(true)
+    expect(l.take('a', 20)).toBe(false)
+    expect(l.retryAfter('a', 20)).toBe(1)
+    expect(l.take('b', 20)).toBe(true)
+    expect(l.take('a', 1000)).toBe(true)
   })
 })
