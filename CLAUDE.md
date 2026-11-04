@@ -9,6 +9,8 @@
 
 **Developer:** Farhod Elbekov — SDET / AI QA Engineer, Charlotte NC
 **Stack:** Next.js 14 + TypeScript + Anthropic Claude API + Supabase + Vercel + Tailwind
+
+**Next.js pinned at 14.2.35 (2026-11-03)** - the 14.x line's last security backport; was 14.2.5. npm audit fix (no --force) cleared form-data, nanoid, source-map-js, ws. Two advisories remain in next and its postcss (one critical) and are fixed only in Next 15/16 - the migration is tracked in hadith-reels OPEN_ITEMS.
 **Tests:** 142 Playwright (TS) + 68 pytest (Python) — CT-GenAI aligned.
 Counted 2026-10-02 from `npx playwright test --list` and
 `pytest --collect-only`, replacing 180 + 36 which matched nothing. The
