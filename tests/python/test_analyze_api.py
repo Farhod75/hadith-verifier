@@ -377,6 +377,13 @@ class TestSeverityScoring:
 # ─────────────────────────────────────────────────────────────
 # SUITE 7: Admin queue API
 # ─────────────────────────────────────────────────────────────
+# P364: /api/queue needs an admin session except under `next dev` on localhost
+# (the pre-push mock server on :3011). Against a deployed BASE_URL the only
+# correct answer to an anonymous request is 401.
+IS_LOCAL_BASE = bool(re.match(r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?", BASE_URL))
+
+
+@pytest.mark.skipif(not IS_LOCAL_BASE, reason="queue is admin-only on a deployed site (P364)")
 class TestAdminQueue:
 
     def test_get_queue_returns_200(self):
@@ -403,6 +410,16 @@ class TestAdminQueue:
         body = res.json()
         if body:
             assert body[0]["verdict"] in VALID_VERDICTS
+
+
+@pytest.mark.skipif(IS_LOCAL_BASE, reason="next dev on localhost is the documented exception")
+class TestAdminQueueDeployed:
+
+    def test_anonymous_get_is_refused(self):
+        res = httpx.get(f"{BASE_URL}/api/queue", timeout=TIMEOUT)
+        assert res.status_code == 401
+        assert not isinstance(res.json(), list)
+
 
 # ─────────────────────────────────────────────────────────────
 # SUITE: Multi-language validation (all 5 languages)

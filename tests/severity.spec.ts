@@ -239,6 +239,11 @@ test.describe('Severity consistency — No contradictions (CT-GenAI)', () => {
 // ─────────────────────────────────────────────────────────────
 test.describe('Severity persistence — Supabase queue (CT-GenAI)', () => {
   test.setTimeout(90000)
+  // P364: /api/queue needs an admin session except under `next dev` on
+  // localhost. Against a deployed BASE_URL these read nothing - tests/api.spec.ts
+  // asserts the 401 there instead.
+  test.skip(!/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/.test(BASE_URL),
+    'queue is admin-only on a deployed site (P364)')
 
   test('GET /api/queue returns array', async ({ request }) => {
     const res = await request.get(`${BASE_URL}/api/queue`)

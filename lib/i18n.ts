@@ -99,6 +99,13 @@ export type Translations = {
   refresh: string
   noFlaggedPosts: string
   adminPolicy: string
+  // P364: admin sign-in
+  adminLoginTitle: string
+  adminPasswordPlaceholder: string
+  adminSignIn: string
+  adminWrongPassword: string
+  adminNotConfigured: string
+  adminLogout: string
   copyBtn: string
   reportBtn: string
   dismissBtn: string
@@ -197,6 +204,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'Refresh',
     noFlaggedPosts: 'No flagged posts yet. Analyze posts to populate the queue.',
     adminPolicy: 'Admin policy: AI flags, humans decide. Never auto-delete or auto-ban.',
+    adminLoginTitle: 'Admin queue is for moderators. Sign in to continue.',
+    adminPasswordPlaceholder: 'Admin password',
+    adminSignIn: 'Sign in',
+    adminWrongPassword: 'Wrong password',
+    adminNotConfigured: 'Admin sign-in is not configured on this server',
+    adminLogout: 'Log out',
     copyBtn: 'Copy',
     reportBtn: 'Report',
     dismissBtn: 'Dismiss',
@@ -288,6 +301,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'Yangilash',
     noFlaggedPosts: "Hali belgilangan postlar yo'q.",
     adminPolicy: "Admin siyosati: Sun'iy intellekt belgilaydi, odamlar qaror qiladi.",
+    adminLoginTitle: 'Admin navbati moderatorlar uchun. Davom etish uchun kiring.',
+    adminPasswordPlaceholder: 'Admin paroli',
+    adminSignIn: 'Kirish',
+    adminWrongPassword: "Parol noto'g'ri",
+    adminNotConfigured: 'Bu serverda admin kirishi sozlanmagan',
+    adminLogout: 'Chiqish',
     copyBtn: 'Nusxalash',
     reportBtn: 'Shikoyat',
     dismissBtn: "O'tkazib yuborish",
@@ -379,6 +398,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'Янгилаш',
     noFlaggedPosts: 'Ҳали белгиланган постлар йўқ.',
     adminPolicy: 'Админ сиёсати: Сунъий интеллект белгилайди, одамлар қарор қилади.',
+    adminLoginTitle: 'Админ навбати модераторлар учун. Давом этиш учун киринг.',
+    adminPasswordPlaceholder: 'Админ пароли',
+    adminSignIn: 'Кириш',
+    adminWrongPassword: 'Парол нотўғри',
+    adminNotConfigured: 'Бу серверда админ кириши созланмаган',
+    adminLogout: 'Чиқиш',
     copyBtn: 'Нусхалаш',
     reportBtn: 'Шикоят',
     dismissBtn: 'Ўтказиб юбориш',
@@ -470,6 +495,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'Обновить',
     noFlaggedPosts: 'Помеченных постов пока нет.',
     adminPolicy: 'Политика: ИИ помечает, люди решают. Автоудаление и автобан запрещены.',
+    adminLoginTitle: 'Очередь модератора — только для модераторов. Войдите, чтобы продолжить.',
+    adminPasswordPlaceholder: 'Пароль администратора',
+    adminSignIn: 'Войти',
+    adminWrongPassword: 'Неверный пароль',
+    adminNotConfigured: 'Вход администратора на этом сервере не настроен',
+    adminLogout: 'Выйти',
     copyBtn: 'Копировать',
     reportBtn: 'Пожаловаться',
     dismissBtn: 'Отклонить',
@@ -561,6 +592,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'تحديث',
     noFlaggedPosts: 'لا توجد منشورات مُبلَّغ عنها بعد.',
     adminPolicy: 'سياسة الإدارة: الذكاء الاصطناعي يُبلِّغ، البشر يقررون. لا حذف تلقائي.',
+    adminLoginTitle: 'قائمة الإدارة للمشرفين فقط. سجّل الدخول للمتابعة.',
+    adminPasswordPlaceholder: 'كلمة مرور المشرف',
+    adminSignIn: 'تسجيل الدخول',
+    adminWrongPassword: 'كلمة المرور غير صحيحة',
+    adminNotConfigured: 'تسجيل دخول المشرف غير مُعدّ على هذا الخادم',
+    adminLogout: 'تسجيل الخروج',
     copyBtn: 'نسخ',
     reportBtn: 'إبلاغ',
     dismissBtn: 'تجاهل',
@@ -652,6 +689,12 @@ const translations: Record<AppLang, Translations> = {
     refresh: 'Навсозӣ',
     noFlaggedPosts: 'Ҳоло паёмҳои қайдшуда нест.',
     adminPolicy: 'Сиёсати маъмур: Зеҳни сунъӣ қайд мекунад, одамон қарор мегиранд. Нест кардани худкор маън аст.',
+    adminLoginTitle: 'Навбати маъмур барои модераторон аст. Барои идома ворид шавед.',
+    adminPasswordPlaceholder: 'Пароли маъмур',
+    adminSignIn: 'Ворид шудан',
+    adminWrongPassword: 'Парол нодуруст аст',
+    adminNotConfigured: 'Воридшавии маъмур дар ин сервер танзим нашудааст',
+    adminLogout: 'Баромадан',
     copyBtn: 'Нусхабардорӣ',
     reportBtn: 'Шикоят',
     dismissBtn: 'Рад кардан',

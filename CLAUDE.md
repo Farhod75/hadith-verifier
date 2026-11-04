@@ -179,7 +179,17 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
 ### Core
 - `app/api/analyze/route.ts` — main Claude API call, rate limiting, validation
 - `app/api/dua-correct/route.ts` — Dua correction endpoint
-- `app/api/admin/queue/route.ts` — admin review queue
+- `app/api/queue/route.ts` — admin review queue (GET list / PATCH reviewed / DELETE).
+  **Every method calls `requireAdmin()` from `lib/admin-session.ts` first (P364).**
+  Before 2026-11-04 it had no gate and used the service-role key: anyone could list,
+  dismiss or delete flagged posts. A new route that reads `flagged_posts` or spends
+  money and does not call it is the P364 defect again.
+- `lib/admin-session.ts` — signed HttpOnly cookie `hv_admin` (12 h), set by
+  `app/api/admin/verify/route.ts` on a correct `ADMIN_PASSWORD`, cleared by
+  `app/api/admin/logout/route.ts`. `next dev` on localhost passes without it (the
+  pre-push mock server on :3011 relies on that); Vercel and `next start` never do.
+  `ADMIN_PASSWORD` is set in Vercel and `.env.local`, never in code. Same guard as
+  hadith-reels P353, separate cookie name.
 - `lib/sanitize.ts` — input sanitization
 - `lib/validate.ts` — output validation, TRUSTED_DOMAINS check
 - `lib/severity.ts` — CRITICAL/HIGH/MEDIUM/LOW scoring

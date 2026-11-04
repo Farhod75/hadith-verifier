@@ -4,7 +4,8 @@
 //   Request validation  → fast status checks ✅ pre-push
 //   Response structure  → schema/enum checks ✅ pre-push
 //   AI quality          → @real-api (Claude verdicts non-deterministic)
-//   Admin queue         → no Claude ✅ pre-push
+//   Admin queue         → no Claude ✅ pre-push (P364: 200 on localhost dev, 401 deployed)
+//   Admin session       → pure unit tests of lib/admin-session.ts (P364)
 //   Severity unit tests → pure function ✅ pre-push
 
 import { test, expect } from '@playwright/test'
@@ -16,6 +17,11 @@ import {
   type Verdict,
   type Confidence
 } from './fixtures/test-data'
+import { NextRequest } from 'next/server'
+import {
+  ADMIN_COOKIE, SESSION_TTL_SECONDS, issueSessionToken, verifySessionToken,
+  passwordMatches, requireAdmin,
+} from '../lib/admin-session'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
 
@@ -178,11 +184,122 @@ test.describe('POST /api/analyze — AI quality @real-api', () => {
 // ─────────────────────────────────────────────────────────────
 // Admin queue
 // ─────────────────────────────────────────────────────────────
+// P364: the queue needs an admin session. `next dev` on localhost is the one
+// exception (lib/admin-session.ts), so the pre-push mock server on :3011 still
+// gets the list; any deployed BASE_URL - CI runs this against
+// https://hadithverifier.com - must refuse an anonymous caller on every method.
+const IS_LOCAL_BASE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/.test(BASE_URL)
+
 test.describe('GET /api/queue', () => {
-  test('should return 200 and array', async ({ request }) => {
+  test('local dev server: 200 and array', async ({ request }) => {
+    test.skip(!IS_LOCAL_BASE, 'deployed site - covered by the 401 tests below')
     const res = await request.get(`${BASE_URL}/api/queue`)
     expect(res.status()).toBe(200)
     expect(Array.isArray(await res.json())).toBe(true)
+  })
+
+  test('deployed site: anonymous GET is refused and lists nothing', async ({ request }) => {
+    test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+    const res = await request.get(`${BASE_URL}/api/queue`)
+    expect(res.status()).toBe(401)
+    expect(Array.isArray(await res.json())).toBe(false)
+  })
+
+  for (const method of ['PATCH', 'DELETE'] as const) {
+    test(`deployed site: anonymous ${method} is refused`, async ({ request }) => {
+      test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+      // A made-up id: even if the guard were missing, nothing real is touched.
+      const res = await request.fetch(`${BASE_URL}/api/queue`, {
+        method, data: { id: '00000000-0000-0000-0000-000000000000' },
+      })
+      expect(res.status()).toBe(401)
+    })
+  }
+
+  test('deployed site: a forged session cookie is refused', async ({ request }) => {
+    test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+    const exp = Math.floor(Date.now() / 1000) + 3600
+    const res = await request.get(`${BASE_URL}/api/queue`, {
+      headers: { cookie: `hv_admin=v1.${exp}.forged-signature` },
+    })
+    expect(res.status()).toBe(401)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// Admin session — unit tests (P364), no server, no network
+// ─────────────────────────────────────────────────────────────
+test.describe('Admin session — lib/admin-session.ts', () => {
+  const env = process.env as Record<string, string | undefined>
+  const saved = { ...env }
+  const KEYS = ['ADMIN_PASSWORD', 'ADMIN_SESSION_SECRET', 'VERCEL', 'NODE_ENV']
+
+  test.beforeEach(() => {
+    env.ADMIN_PASSWORD = 'correct horse'
+    delete env.ADMIN_SESSION_SECRET
+    delete env.VERCEL
+    env.NODE_ENV = 'production'
+  })
+  test.afterEach(() => {
+    for (const k of KEYS) { if (saved[k] === undefined) delete env[k]; else env[k] = saved[k] }
+  })
+
+  function req(url: string, headers: Record<string, string> = {}) {
+    return new NextRequest(url, { method: 'GET', headers: { host: new URL(url).host, ...headers } })
+  }
+
+  test('password: exact match only, nothing matches when none is configured', () => {
+    expect(passwordMatches('correct horse')).toBe(true)
+    expect(passwordMatches('correct horse ')).toBe(false)
+    expect(passwordMatches(undefined)).toBe(false)
+    delete env.ADMIN_PASSWORD
+    expect(passwordMatches('')).toBe(false)
+  })
+
+  test('token: fresh verifies, expired and tampered do not', () => {
+    const now = Date.now()
+    const token = issueSessionToken(now)!
+    expect(verifySessionToken(token, now)).toBe(true)
+    expect(verifySessionToken(token, now + (SESSION_TTL_SECONDS + 1) * 1000)).toBe(false)
+    const [v, exp, sig] = token.split('.')
+    expect(verifySessionToken(`${v}.${Number(exp) + 3600}.${sig}`)).toBe(false)
+    expect(verifySessionToken(`${v}.${exp}.${sig.slice(0, -1)}A`)).toBe(false)
+    expect(verifySessionToken('')).toBe(false)
+  })
+
+  test('changing the password signs every session out', () => {
+    const token = issueSessionToken()!
+    env.ADMIN_PASSWORD = 'new password'
+    expect(verifySessionToken(token)).toBe(false)
+  })
+
+  test('production: no cookie -> 401, valid cookie -> allowed', () => {
+    expect(requireAdmin(req('https://hadithverifier.com/api/queue'))?.status).toBe(401)
+    const cookie = `${ADMIN_COOKIE}=${issueSessionToken()}`
+    expect(requireAdmin(req('https://hadithverifier.com/api/queue', { cookie }))).toBeNull()
+  })
+
+  test('the HR cookie name is not accepted here', () => {
+    const cookie = `hr_admin=${issueSessionToken()}`
+    expect(ADMIN_COOKIE).toBe('hv_admin')
+    expect(requireAdmin(req('https://hadithverifier.com/api/queue', { cookie }))?.status).toBe(401)
+  })
+
+  test('cross-origin is refused even with a valid cookie', () => {
+    const cookie = `${ADMIN_COOKIE}=${issueSessionToken()}`
+    expect(requireAdmin(req('https://hadithverifier.com/api/queue',
+      { cookie, origin: 'https://evil.example' }))?.status).toBe(403)
+  })
+
+  test('next dev on localhost passes; Vercel, LAN host and next start do not', () => {
+    env.NODE_ENV = 'development'
+    expect(requireAdmin(req('http://localhost:3011/api/queue'))).toBeNull()
+    expect(requireAdmin(req('http://192.168.1.20:3011/api/queue'))?.status).toBe(401)
+    env.VERCEL = '1'
+    expect(requireAdmin(req('http://localhost:3011/api/queue'))?.status).toBe(401)
+    delete env.VERCEL
+    env.NODE_ENV = 'production'
+    expect(requireAdmin(req('http://localhost:3011/api/queue'))?.status).toBe(401)
   })
 })
 

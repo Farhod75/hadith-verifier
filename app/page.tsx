@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { t, getDir, APP_LANGUAGES, type AppLang } from '@/lib/i18n'
 import SpeechInput from '@/components/SpeechInput'
 import TTSPlayer from '@/components/TTSPlayer'
@@ -89,6 +89,12 @@ export default function Home() {
   const [duaResult, setDuaResult]       = useState<DuaResult | null>(null)
   const [queue, setQueue]               = useState<QueueItem[]>([])
   const [queueLoading, setQueueLoading] = useState(false)
+  // P364: the queue is behind an admin session. 'unknown' until the first fetch
+  // answers; 'out' shows the password form instead of the queue.
+  const [adminState, setAdminState]     = useState<'unknown' | 'in' | 'out'>('unknown')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminError, setAdminError]     = useState('')
+  const [adminBusy, setAdminBusy]       = useState(false)
   const [stats, setStats]               = useState({ total: 0, fabricated: 0, authentic: 0 })
   const [searchQuery, setSearchQuery]   = useState('')
   const [searchTag, setSearchTag]       = useState('')
@@ -117,8 +123,36 @@ export default function Home() {
 
   async function fetchQueue() {
     setQueueLoading(true)
-    try { const r = await fetch('/api/queue'); setQueue(await r.json()) } catch { setQueue([]) }
+    try {
+      const r = await fetch('/api/queue')
+      if (r.status === 401 || r.status === 403) { setAdminState('out'); setQueue([]) }
+      else {
+        const body = await r.json()
+        setQueue(Array.isArray(body) ? body : [])
+        setAdminState('in')
+      }
+    } catch { setQueue([]) }
     setQueueLoading(false)
+  }
+
+  async function adminSignIn(e: FormEvent) {
+    e.preventDefault()
+    if (!adminPassword || adminBusy) return
+    setAdminBusy(true); setAdminError('')
+    try {
+      const r = await fetch('/api/admin/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword }),
+      })
+      if (r.ok) { setAdminPassword(''); await fetchQueue() }
+      else setAdminError(r.status === 503 ? tr.adminNotConfigured : tr.adminWrongPassword)
+    } catch { setAdminError(tr.adminWrongPassword) }
+    setAdminBusy(false)
+  }
+
+  async function adminSignOut() {
+    try { await fetch('/api/admin/logout', { method: 'POST' }) } catch { /* cookie expires anyway */ }
+    setQueue([]); setAdminState('out')
   }
 
   async function searchHadiths() {
@@ -667,15 +701,32 @@ export default function Home() {
                   {tr.flaggedPostsQueue}
                   {queue.length > 0 && <span className="ml-2 bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{queue.length}</span>}
                 </div>
-                <button onClick={fetchQueue} className="text-xs text-emerald-600 hover:underline">{tr.refresh}</button>
+                {adminState === 'in' && (
+                  <div className="flex items-center gap-3">
+                    <button onClick={fetchQueue} className="text-xs text-emerald-600 hover:underline">{tr.refresh}</button>
+                    <button onClick={adminSignOut} data-testid="admin-logout"
+                      className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.adminLogout}</button>
+                  </div>
+                )}
               </div>
+              {adminState === 'out' && !queueLoading && (
+                <form onSubmit={adminSignIn} className="py-6 flex flex-col items-center gap-3" data-testid="admin-login">
+                  <div className="text-sm text-gray-600">{tr.adminLoginTitle}</div>
+                  <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)}
+                    placeholder={tr.adminPasswordPlaceholder} aria-label={tr.adminPasswordPlaceholder} autoComplete="current-password"
+                    className="w-full max-w-xs text-sm px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-emerald-400" />
+                  <button type="submit" disabled={adminBusy || !adminPassword}
+                    className="text-sm px-4 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">{tr.adminSignIn}</button>
+                  {adminError && <div className="text-xs text-red-600">{adminError}</div>}
+                </form>
+              )}
               {queueLoading && (
                 <div className="flex items-center justify-center py-8 gap-2">
                   <span className="w-4 h-4 border-2 border-emerald-500/40 border-t-emerald-500 rounded-full animate-spin" />
                   <span className="text-sm text-gray-400">Loading...</span>
                 </div>
               )}
-              {!queueLoading && queue.length === 0 && (
+              {!queueLoading && adminState === 'in' && queue.length === 0 && (
                 <div className="text-sm text-gray-400 py-8 text-center">{tr.noFlaggedPosts}</div>
               )}
               <div className="space-y-3">
@@ -719,7 +770,8 @@ export default function Home() {
                           🚩 {tr.reportBtn}
                         </button>
                         <button onClick={async () => {
-                            await fetch('/api/queue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+                            const r = await fetch('/api/queue', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+                            if (r.status === 401 || r.status === 403) { setQueue([]); setAdminState('out'); return }
                             setQueue(q => q.filter(i => i.id !== item.id))
                           }}
                           className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100">

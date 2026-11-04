@@ -1,4 +1,13 @@
+// app/api/queue/route.ts
+// Admin review queue for flagged posts (rows written by /api/analyze).
+//
+// P364: every method now calls requireAdmin() first. Before, all three answered
+// anyone, through the service-role key: GET listed every flagged post, PATCH
+// marked any id reviewed, DELETE removed any id. GET also logged the key's
+// length and the Supabase URL prefix on every call; those lines are gone.
+
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/admin-session'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -8,29 +17,21 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'MISSING'
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'MISSING'
-    
-    console.log('URL:', url.substring(0, 30))
-    console.log('KEY length:', key.length)
-    
     const supabase = getSupabase()
     if (!supabase) {
-      console.log('Supabase client failed to create')
+      console.error('Queue GET: Supabase is not configured')
       return NextResponse.json([])
     }
 
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('flagged_posts')
-      .select('*', { count: 'exact' })
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(50)
-
-    console.log('Count:', count)
-    console.log('Error:', error)
-    console.log('Data length:', data?.length)
 
     if (error) throw error
     return NextResponse.json(data || [])
@@ -41,6 +42,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
     const { id } = await req.json()
     const supabase = getSupabase()
@@ -53,6 +56,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
     const { id } = await req.json()
     const supabase = getSupabase()

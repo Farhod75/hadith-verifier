@@ -7,3 +7,8 @@
 - Screen reader ARIA labels on all interactive elements
 - STT on Dua tab already done ✅
 - STT on Analyze tab already done ✅
+
+### Admin queue sign-in (P364) ✅
+- Admin queue tab asks for the admin password; the queue API refuses anonymous callers (401)
+- Log out button ends the session; sessions expire after 12 hours
+- Sign-in form and messages in all six app languages (EN, UZ Latin, UZ Cyrillic, RU, AR, TJ)

@@ -3138,3 +3138,70 @@ doc-only push, and most pushes here are docs. It discovers its own interpreter
 initialised yet).
 
 **Status:** FIXED
+
+---
+
+## PATTERN 364: the admin queue was a public API with the service-role key behind it
+
+**HV only.** Global P-sequence: HR holds the frontier (P363 on 2026-11-04);
+this number is recorded in `hadith-reels/fix_patterns.md` too so it is not
+reused. The guard itself is HR's P353, ported.
+
+**Found 2026-11-04** by a review of the original development plans against the
+code, the day after the same class of defect was closed in hadith-reels (P353,
+Sol 6.1 audit R7). `app/api/queue/route.ts` exported GET, PATCH and DELETE with
+no check of any kind, and built its Supabase client from
+`SUPABASE_SERVICE_ROLE_KEY` - the key that bypasses row-level security. The
+admin tab in `app/page.tsx` had no login; it simply called the route.
+
+**Verified live before the fix:** an anonymous `GET https://hadithverifier.com/api/queue`
+answered 200 with ~152 KB - the 50 most recent flagged posts, with their text,
+verdicts and suggested replies. PATCH would have marked any id reviewed and
+DELETE would have removed it; neither was exercised against production. GET
+also logged the Supabase URL prefix and the key's length on every call.
+
+**Why it survived:** the tests pinned the hole as the contract. `api.spec.ts`
+("should return 200 and array"), `severity.spec.ts` and the pytest
+`TestAdminQueue` all asserted that an anonymous GET succeeds - and CI ran
+`api.spec.ts` against production, so every green run re-confirmed that the
+queue was open to anyone. A test that asserts the current behaviour of an
+endpoint without asking who should be allowed to call it turns a defect into a
+regression guard.
+
+**Fix:**
+- `lib/admin-session.ts` - HR's P353 guard, cookie `hv_admin` (a session on one
+  site is never a session on the other). Signed HMAC token, HttpOnly,
+  SameSite=Strict, 12 h; constant-time password check; cross-origin -> 403;
+  `next dev` on a localhost Host is the only exception, never on Vercel.
+- `app/api/admin/verify` (sets the cookie) and `app/api/admin/logout` (clears it).
+- `requireAdmin()` first in GET, PATCH and DELETE of `/api/queue`; the
+  URL/key-length logging is removed.
+- Admin tab: password form when the queue answers 401/403, Log out button, a
+  dismiss that hits 401 drops back to the form. Six new i18n keys in all six
+  app languages.
+- Tests now state who may call it: localhost dev -> 200 and a list; a deployed
+  BASE_URL -> 401 for anonymous GET, PATCH and DELETE and for a forged cookie
+  (`api.spec.ts`, run by CI against production, so CI now asserts the hole
+  stays closed). Seven unit tests of the guard in `api.spec.ts` (no server).
+  `severity.spec.ts` and pytest skip the list tests on a deployed BASE_URL;
+  pytest gains `TestAdminQueueDeployed`.
+- Checked before commit against `next start` (production mode): anonymous
+  GET/PATCH/DELETE 401, wrong password 401, right password 200 + HttpOnly
+  cookie -> queue 200, cross-origin 403, after logout 401. UI: form, wrong
+  password message, sign in, log out, reload stays signed out.
+
+**Operator step:** `ADMIN_PASSWORD` must be added to the HV Vercel project (and
+`.env.local` for a local `next start`). Until it is, nobody can sign in - the
+queue stays closed, which is the safe failure.
+
+**Not covered here:** HV `/api/tts` (ElevenLabs, paid) is still callable by
+anyone. It serves the public Listen buttons, so a session gate is the wrong
+fix; it needs a rate limit and a length cap. Recorded as open.
+
+**Lesson:** when a route touches a privileged key, the first test is "what does
+an anonymous caller get?" - and the answer must be written down as a refusal.
+
+**Tripwire:** none - HV has no `.claude/tripwires.json`. The CI assertion
+against production is the standing check.
+
+**Status:** FIXED (pending the `ADMIN_PASSWORD` env var for sign-in)
