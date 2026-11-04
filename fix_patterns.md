@@ -3205,3 +3205,39 @@ an anonymous caller get?" - and the answer must be written down as a refusal.
 against production is the standing check.
 
 **Status:** FIXED (pending the `ADMIN_PASSWORD` env var for sign-in)
+
+---
+
+## PATTERN 365: the E2E gate pointed at a server nobody started
+
+**HV only.** Number recorded in `hadith-reels/fix_patterns.md` too.
+
+**Found 2026-11-04**, on the P364 push. The pre-push hook blocked it with 15 of
+15 E2E tests failing in about four seconds each, every one on
+`page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3011/`.
+
+**Root cause:** the E2E branch exported `BASE_URL=http://localhost:3011` and ran
+`hadith-verifier.spec.ts` without starting anything on that port. The API
+branch above it does start a mock server on :3011 - and kills it in its own
+step 4, before the E2E branch runs. A UI-only push starts no server at all.
+`playwright.config.ts` starts no `webServer` when `MOCK_CLAUDE=1`. So the branch
+could only pass when a developer happened to have `next dev -p 3011` running by
+hand; otherwise it failed on every push that touched `app/page.tsx`,
+`components/` or `lib/` - which reads as "the UI is broken" and invites
+`--no-verify`.
+
+**Fix:** the E2E branch starts its own `MOCK_CLAUDE=1 next dev -p 3011`, waits
+for it (60 s), runs the suite, and kills it - the API branch's lifecycle,
+copied. A server that does not come up fails the branch with the log path.
+
+**Proof:** the hook cannot test itself (it matches DOC_PATTERNS). The re-push of
+P364 is the proof run: it touches `app/page.tsx` and `lib/`, so it takes both
+branches, API first and E2E second - exactly the order that failed.
+
+**Lesson:** a test stage that depends on a server must own that server's
+lifecycle. Relying on one started elsewhere couples the stage to whatever ran
+before it - and here what ran before it had just shut it down.
+
+**Tripwire:** none - the hook is the check.
+
+**Status:** FIXED (pending the proof push)
