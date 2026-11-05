@@ -263,7 +263,11 @@ test.describe('Admin session — lib/admin-session.ts', () => {
     expect(verifySessionToken(token, now + (SESSION_TTL_SECONDS + 1) * 1000)).toBe(false)
     const [v, exp, sig] = token.split('.')
     expect(verifySessionToken(`${v}.${Number(exp) + 3600}.${sig}`)).toBe(false)
-    expect(verifySessionToken(`${v}.${exp}.${sig.slice(0, -1)}A`)).toBe(false)
+    // P369: replace the last character with a DIFFERENT one. Appending 'A' after
+    // slice(0,-1) re-created the original token whenever the signature already
+    // ended in 'A' (1 run in 64), and CI went red on a correct guard.
+    const last = sig.slice(-1)
+    expect(verifySessionToken(`${v}.${exp}.${sig.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`)).toBe(false)
     expect(verifySessionToken('')).toBe(false)
   })
 

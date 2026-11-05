@@ -3282,3 +3282,19 @@ us spend".
 **Tripwire:** none.
 
 **Status:** FIXED (per-instance brake); global quota OPEN.
+
+---
+
+## PATTERN 369: a tamper test that sometimes did not tamper
+
+**HV instance of the hadith-reels pattern; same number.** Full entry:
+`hadith-reels/fix_patterns.md` P369. The P364 unit test in `tests/api.spec.ts`
+built the tampered signature as `sig.slice(0, -1) + 'A'`, which is the original
+token whenever the signature already ends in 'A' (one run in 64). HR's CI went red
+on it on 2026-11-05; this copy had not yet. Fixed the same way: the last character
+is replaced with a different one. Proven with a token whose signature ends in 'A':
+the old tampered token verified, the new one does not.
+
+**Tripwire:** none.
+
+**Status:** FIXED
