@@ -65,9 +65,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // P383: browser extensions (Katalon, Tosca, password managers) write attributes
+  // onto <html>/<body> before React hydrates. suppressHydrationWarning silences
+  // only these two elements' own attributes - the app tree is still checked.
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         {children}
         {/* GA4 - removed by accident in dc67176 (2026-05-01), restored 2026-11-08 */}
         <GoogleAnalytics gaId="G-32J9GLEBKS" />

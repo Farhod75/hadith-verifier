@@ -18,7 +18,6 @@ const nextConfig = {
               "img-src 'self' data: blob: https://www.google-analytics.com https://www.googletagmanager.com",
              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.telegram.org https://api.elevenlabs.io https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com",
              "media-src 'self' blob: https://cdn.islamic.network",
-             "media-src 'self' blob:",
               "font-src 'self'",
               "frame-ancestors 'none'",
             ].join('; ')

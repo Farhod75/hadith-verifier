@@ -8,8 +8,7 @@ import {
   FABRICATED_POSTS,
   AUTHENTIC_POSTS,
   } from './fixtures/test-data'
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
+import { BASE_URL, isLocalNextDev } from './fixtures/server-mode'
 const VALID_SEVERITY_VALUES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
 // ─────────────────────────────────────────────────────────────
@@ -240,10 +239,11 @@ test.describe('Severity consistency — No contradictions (CT-GenAI)', () => {
 test.describe('Severity persistence — Supabase queue (CT-GenAI)', () => {
   test.setTimeout(90000)
   // P364: /api/queue needs an admin session except under `next dev` on
-  // localhost. Against a deployed BASE_URL these read nothing - tests/api.spec.ts
-  // asserts the 401 there instead.
-  test.skip(!/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/.test(BASE_URL),
-    'queue is admin-only on a deployed site (P364)')
+  // localhost. Against any other server - deployed, or `next start` on
+  // localhost (P383) - these read nothing; tests/api.spec.ts asserts the 401.
+  test.beforeEach(async () => {
+    test.skip(!(await isLocalNextDev()), 'queue is admin-only outside `next dev` (P364)')
+  })
 
   test('GET /api/queue returns array', async ({ request }) => {
     const res = await request.get(`${BASE_URL}/api/queue`)

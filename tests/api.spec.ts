@@ -4,7 +4,7 @@
 //   Request validation  → fast status checks ✅ pre-push
 //   Response structure  → schema/enum checks ✅ pre-push
 //   AI quality          → @real-api (Claude verdicts non-deterministic)
-//   Admin queue         → no Claude ✅ pre-push (P364: 200 on localhost dev, 401 deployed)
+//   Admin queue         → no Claude ✅ pre-push (P364: 200 under local `next dev`, 401 otherwise; P383)
 //   Admin session       → pure unit tests of lib/admin-session.ts (P364)
 //   Severity unit tests → pure function ✅ pre-push
 
@@ -23,8 +23,7 @@ import {
   passwordMatches, requireAdmin,
 } from '../lib/admin-session'
 import { queueRow, FLAGGED_POSTS_COLUMNS } from '../lib/queue-row'
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
+import { BASE_URL, isLocalNextDev } from './fixtures/server-mode'
 
 // ─────────────────────────────────────────────────────────────
 // Request validation
@@ -187,20 +186,20 @@ test.describe('POST /api/analyze — AI quality @real-api', () => {
 // ─────────────────────────────────────────────────────────────
 // P364: the queue needs an admin session. `next dev` on localhost is the one
 // exception (lib/admin-session.ts), so the pre-push mock server on :3011 still
-// gets the list; any deployed BASE_URL - CI runs this against
-// https://hadithverifier.com - must refuse an anonymous caller on every method.
-const IS_LOCAL_BASE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/.test(BASE_URL)
+// gets the list; any other server - the deployed site (CI runs this against
+// https://hadithverifier.com) or a production build on localhost (`next start`,
+// P383) - must refuse an anonymous caller on every method.
 
 test.describe('GET /api/queue', () => {
   test('local dev server: 200 and array', async ({ request }) => {
-    test.skip(!IS_LOCAL_BASE, 'deployed site - covered by the 401 tests below')
+    test.skip(!(await isLocalNextDev()), 'not `next dev` - covered by the 401 tests below')
     const res = await request.get(`${BASE_URL}/api/queue`)
     expect(res.status()).toBe(200)
     expect(Array.isArray(await res.json())).toBe(true)
   })
 
   test('deployed site: anonymous GET is refused and lists nothing', async ({ request }) => {
-    test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+    test.skip(await isLocalNextDev(), 'next dev on localhost is the documented exception')
     const res = await request.get(`${BASE_URL}/api/queue`)
     expect(res.status()).toBe(401)
     expect(Array.isArray(await res.json())).toBe(false)
@@ -208,7 +207,7 @@ test.describe('GET /api/queue', () => {
 
   for (const method of ['PATCH', 'DELETE'] as const) {
     test(`deployed site: anonymous ${method} is refused`, async ({ request }) => {
-      test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+      test.skip(await isLocalNextDev(), 'next dev on localhost is the documented exception')
       // A made-up id: even if the guard were missing, nothing real is touched.
       const res = await request.fetch(`${BASE_URL}/api/queue`, {
         method, data: { id: '00000000-0000-0000-0000-000000000000' },
@@ -218,7 +217,7 @@ test.describe('GET /api/queue', () => {
   }
 
   test('deployed site: a forged session cookie is refused', async ({ request }) => {
-    test.skip(IS_LOCAL_BASE, 'next dev on localhost is the documented exception')
+    test.skip(await isLocalNextDev(), 'next dev on localhost is the documented exception')
     const exp = Math.floor(Date.now() / 1000) + 3600
     const res = await request.get(`${BASE_URL}/api/queue`, {
       headers: { cookie: `hv_admin=v1.${exp}.forged-signature` },

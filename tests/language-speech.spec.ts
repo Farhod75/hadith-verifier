@@ -1,6 +1,5 @@
 import { test, expect, request } from '@playwright/test'
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
+import { BASE_URL } from './fixtures/server-mode'
 const TIMEOUT = 90000
 
 // ── Test data per language ──────────────────────────────────
@@ -133,10 +132,14 @@ test.describe('TTS API — /api/tts', () => {
     expect(res.status()).toBe(400)
   })
 
-  test('returns 400 when voiceId missing', async () => {
+  // P383: was 'returns 400 when voiceId missing'. Since P061 the route takes
+  // {text, lang} and picks the voice itself (P366), so {text} alone is a valid
+  // request - the old test expected 400 and instead made a real ElevenLabs
+  // call. Text that is empty after sanitization is refused before any call.
+  test('returns 400 when text is empty after sanitization', async () => {
     const ctx = await request.newContext()
     const res = await ctx.post(`${BASE_URL}/api/tts`, {
-      data: { text: 'test' },
+      data: { text: '   ', lang: 'en' },
     })
     expect(res.status()).toBe(400)
   })
