@@ -3298,3 +3298,24 @@ the old tampered token verified, the new one does not.
 **Tripwire:** none.
 
 **Status:** FIXED
+
+## PATTERN 379: Next 14 -> 16.4.5 upgrade (tsconfig BOM, RTL test, mock flag)
+
+**HV entry; full text in `hadith-reels/fix_patterns.md` P379.** tsconfig.json carried a UTF-8 BOM that
+Turbopack cannot parse; the RTL test read the first `<div>`, which Next 16 makes a hidden one; run the
+suite with `MOCK_CLAUDE=1` against a server you started. A/B main vs branch: the same 14 failures,
+none from the upgrade. Merged bd19198.
+
+**Tripwire:** "tsconfig is not parseable" at build.
+
+**Status:** FIXED
+
+## PATTERN 380: two Vercel projects for this repo
+
+**HV entry; full text in `hadith-reels/fix_patterns.md` P380.** The domain project is
+**hadith-verifier-vp57**. A CLI link on 2026-04-13 created **hadith-verifier**; its Git is now disconnected
+and this folder is linked to vp57. Check `.vercel/project.json` before any `vercel` command.
+
+**Tripwire:** `.vercel/project.json` projectName != hadith-verifier-vp57.
+
+**Status:** FIXED
