@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@supabase/supabase-js'
+import { queueRow } from '@/lib/queue-row'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 // Deterministic mock for pre-push/CI tests (MOCK_CLAUDE=1) — skips the real API.
@@ -263,18 +264,10 @@ RULES:
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
-        await sb.from('flagged_posts').insert({
-          post_text:         postText || '[image submission]',
-          verdict:           result.verdict,
-          confidence:        result.confidence,
-          severity:          result.severity,
-          claim_summary:     result.claim_summary,
-          suggested_comment: result.suggested_comment,
-          lang,
-          red_flags:         result.red_flags   || [],
-          references:        result.references  || [],
-          created_at:        new Date().toISOString()
-        })
+        // P381: build the row in lib/queue-row.ts and read the error supabase-js returns -
+        // it does not throw, so the catch below never saw six months of refused inserts.
+        const { error: insertErr } = await sb.from('flagged_posts').insert(queueRow(postText, result, lang))
+        if (insertErr) console.error('Queue save error (non-fatal):', insertErr.message)
       } catch (dbErr) {
         console.error('Queue save error (non-fatal):', dbErr)
       }

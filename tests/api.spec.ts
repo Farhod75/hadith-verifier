@@ -22,6 +22,7 @@ import {
   ADMIN_COOKIE, SESSION_TTL_SECONDS, issueSessionToken, verifySessionToken,
   passwordMatches, requireAdmin,
 } from '../lib/admin-session'
+import { queueRow, FLAGGED_POSTS_COLUMNS } from '../lib/queue-row'
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001'
 
@@ -347,5 +348,33 @@ test.describe('Severity scoring — unit tests (CT-GenAI)', () => {
     if (body.severity) {
       expect(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']).toContain(body.severity)
     }
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// Queue row — unit tests (P381), no server, no network
+// ─────────────────────────────────────────────────────────────
+test.describe('Queue row — lib/queue-row.ts (P381)', () => {
+  const result = {
+    verdict: 'fabricated', confidence: 'high', severity: 'CRITICAL', claim_summary: 'c',
+    analysis: 'a', suggested_comment: 's', red_flags: ['f'], references: [{ url: 'https://dorar.net/x' }],
+  }
+
+  test('every field the route sends is a column of flagged_posts', () => {
+    // 2026-05-11 to 2026-11-08 the route sent `references`, which is not a column: every insert failed.
+    const keys = Object.keys(queueRow('post', result, 'uz'))
+    expect(keys.filter(k => !(FLAGGED_POSTS_COLUMNS as readonly string[]).includes(k))).toEqual([])
+  })
+
+  test('the model references are saved as sources', () => {
+    const row = queueRow('post', result, 'uz', new Date('2026-11-08T00:00:00Z'))
+    expect(row.sources).toEqual(result.references)
+    expect(row).not.toHaveProperty('references')
+    expect(row.created_at).toBe('2026-11-08T00:00:00.000Z')
+  })
+
+  test('an image submission without text gets a placeholder', () => {
+    expect(queueRow('', result, 'en').post_text).toBe('[image submission]')
+    expect(queueRow(undefined, { verdict: 'weak' }, 'en').sources).toEqual([])
   })
 })
