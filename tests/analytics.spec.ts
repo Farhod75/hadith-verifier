@@ -4,7 +4,8 @@
 declare global {
   interface Window {
     gtag: (...args: any[]) => void
-    dataLayer: any[]
+    // optional and Object[]: must match @next/third-parties' own global declaration (TS2687)
+    dataLayer?: Object[]
   }
 }
 import { test, expect } from '@playwright/test'

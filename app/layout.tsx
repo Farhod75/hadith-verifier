@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -66,7 +67,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* GA4 - removed by accident in dc67176 (2026-05-01), restored 2026-11-08 */}
+        <GoogleAnalytics gaId="G-32J9GLEBKS" />
+      </body>
     </html>
   )
 }
