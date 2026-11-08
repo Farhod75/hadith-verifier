@@ -147,7 +147,8 @@ test.describe('Accessibility — RTL layout (Arabic)', () => {
     await page.locator('header button').filter({ hasText: /English/ }).click()
     await page.getByText('العربية').click()
     await page.waitForTimeout(500)
-    const dir = await page.locator('div').first().getAttribute('dir')
+    // Next 16 renders a hidden <div> first in <body>; target the app root, not the first div
+    const dir = await page.locator('div.min-h-screen').first().getAttribute('dir')
     expect(dir).toBe('rtl')
   })
 })
