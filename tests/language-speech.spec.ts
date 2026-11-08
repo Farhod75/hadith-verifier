@@ -135,11 +135,12 @@ test.describe('TTS API — /api/tts', () => {
   // P383: was 'returns 400 when voiceId missing'. Since P061 the route takes
   // {text, lang} and picks the voice itself (P366), so {text} alone is a valid
   // request - the old test expected 400 and instead made a real ElevenLabs
-  // call. Text that is empty after sanitization is refused before any call.
+  // call. Text that is empty after sanitization (P059: a link, a bullet and a
+  // hadith number only) is refused before ElevenLabs is reached.
   test('returns 400 when text is empty after sanitization', async () => {
     const ctx = await request.newContext()
     const res = await ctx.post(`${BASE_URL}/api/tts`, {
-      data: { text: '   ', lang: 'en' },
+      data: { text: '◆ https://sunnah.com/bukhari:1 #1894', lang: 'en' },
     })
     expect(res.status()).toBe(400)
   })
