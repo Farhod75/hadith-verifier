@@ -3411,3 +3411,36 @@ that still passes by calling a paid API has stopped testing what its name says.
 default; a TTS validation test that reaches ElevenLabs.
 
 **Status:** FIXED
+
+---
+
+## PATTERN 388: /api/health said "ok" through the kind of outage HV actually has
+
+**Date:** 2026-11-10  **Repo:** hadith-verifier (+ hadith-reels)  **Severity:** MEDIUM (detection gap, no user impact today)
+
+**What happened.** The operator asked how we would know if HV or HR stopped working, "as already happened
+with HV". HV's outages were never the site going dark: the page served and Supabase answered while every
+analysis failed, because the pinned model had been retired (P90: claude-sonnet-4-20250514; P129:
+claude-sonnet-4-6). `/api/health` (P291) asked only Supabase, so it would have said "ok" through both.
+The model id was hardcoded in three routes (analyze, dua, voice-intent) - why each retirement meant a hunt.
+HR had no health route at all. Nothing alerted anyone: P90 and P129 were found by accident.
+
+**Fix.**
+- `lib/models.ts`: `CLAUDE_MODEL`, the one place the id lives; the three routes import it.
+- `lib/health.ts`: `checkClaude()` asks `GET /v1/models/{id}` - metadata only, no tokens, no cost -
+  and maps 401/403 -> auth_failed, 404 -> model_unavailable, other -> unreachable; `MOCK_CLAUDE=1` ->
+  mocked, no key -> unconfigured, both without a network call.
+- `/api/health` now reports `{status, db, claude, ms}`, 200 only when db is reachable and Claude is
+  ok/mocked, else 503 - a monitor that reads only the status code catches either. A healthy Claude
+  answer is reused for 5 minutes; failures are not cached. Still no config detail in the body.
+- HR: `/api/health` added (Supabase only - the public HR site makes no Claude call).
+- Alerting: an external uptime monitor on both health URLs (operator's account) - see RECOVERY.md.
+
+**Not covered:** an exhausted credit balance (the models endpoint still answers 200; only a real request
+fails) - RECOVERY.md lists it.
+
+**Lesson:** a health check proves only what it asks. Ask about the thing that has actually failed before.
+
+**Tripwire:** a model id string outside lib/models.ts; /api/health 200 while /api/analyze fails.
+
+**Status:** FIXED

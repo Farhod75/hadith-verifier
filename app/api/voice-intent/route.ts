@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { CLAUDE_MODEL } from '@/lib/models'   // P388: one place for the model id
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   let message
   try {
     message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
+      model: CLAUDE_MODEL,
       max_tokens: 300,
       messages: [{
         role: 'user',

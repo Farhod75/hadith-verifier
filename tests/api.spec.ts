@@ -24,6 +24,7 @@ import {
 } from '../lib/admin-session'
 import { queueRow, FLAGGED_POSTS_COLUMNS } from '../lib/queue-row'
 import { BASE_URL, isLocalNextDev } from './fixtures/server-mode'
+import { claudeStateFromStatus, claudeHealthy, checkClaude } from '../lib/health'
 
 // ─────────────────────────────────────────────────────────────
 // Request validation
@@ -375,5 +376,44 @@ test.describe('Queue row — lib/queue-row.ts (P381)', () => {
   test('an image submission without text gets a placeholder', () => {
     expect(queueRow('', result, 'en').post_text).toBe('[image submission]')
     expect(queueRow(undefined, { verdict: 'weak' }, 'en').sources).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
+// Health — P388: the model check, unit tests (no network) + the live route
+// ─────────────────────────────────────────────────────────────
+test.describe('Health — lib/health.ts (P388)', () => {
+  test('a retired or misspelled model is model_unavailable, not ok', () => {
+    expect(claudeStateFromStatus(200)).toBe('ok')
+    expect(claudeStateFromStatus(404)).toBe('model_unavailable')
+    expect(claudeStateFromStatus(401)).toBe('auth_failed')
+    expect(claudeStateFromStatus(403)).toBe('auth_failed')
+    expect(claudeStateFromStatus(529)).toBe('unreachable')
+    expect(claudeStateFromStatus(429)).toBe('unreachable')
+  })
+
+  test('only ok and mocked count as healthy', () => {
+    expect(claudeHealthy('ok')).toBe(true)
+    expect(claudeHealthy('mocked')).toBe(true)
+    for (const s of ['unconfigured', 'auth_failed', 'model_unavailable', 'unreachable'] as const)
+      expect(claudeHealthy(s)).toBe(false)
+  })
+
+  test('mock mode and a missing key never call Anthropic', async () => {
+    expect(await checkClaude('x', { MOCK_CLAUDE: '1' } as any)).toBe('mocked')
+    expect(await checkClaude('x', {} as any)).toBe('unconfigured')
+  })
+})
+
+test.describe('GET /api/health (P388)', () => {
+  test('reports db and claude, and 200 only when both are healthy', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/health`)
+    const body = await res.json()
+    expect(['reachable', 'unreachable', 'unconfigured']).toContain(body.db)
+    expect(['ok', 'mocked', 'unconfigured', 'auth_failed', 'model_unavailable', 'unreachable']).toContain(body.claude)
+    const healthy = body.db === 'reachable' && ['ok', 'mocked'].includes(body.claude)
+    expect(res.status()).toBe(healthy ? 200 : 503)
+    expect(body.status).toBe(healthy ? 'ok' : 'degraded')
+    expect(JSON.stringify(body)).not.toMatch(/claude-|supabase\.co|sk-ant/)   // no config detail
   })
 })

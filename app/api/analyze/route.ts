@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { CLAUDE_MODEL } from '@/lib/models'   // P388: one place for the model id
 import { createClient } from '@supabase/supabase-js'
 import { queueRow } from '@/lib/queue-row'
 
@@ -237,7 +238,7 @@ RULES:
     const response = process.env.MOCK_CLAUDE === '1'
             ? { content: [{ type: 'text', text: JSON.stringify(mockAnalysis(lang)) }] }
       : await anthropic.messages.create({
-          model:      'claude-sonnet-5',
+          model:      CLAUDE_MODEL,
           max_tokens: 8000,
           system:     SYSTEM_PROMPT,
           messages:   [{ role: 'user', content: messageContent }]

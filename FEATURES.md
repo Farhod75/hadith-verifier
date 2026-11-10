@@ -12,3 +12,7 @@
 - Admin queue tab asks for the admin password; the queue API refuses anonymous callers (401)
 - Log out button ends the session; sessions expire after 12 hours
 - Sign-in form and messages in all six app languages (EN, UZ Latin, UZ Cyrillic, RU, AR, TJ)
+
+### Health check that sees a retired model (P388) ✅
+- `/api/health` answers 200 only when the database answers AND the Claude model still exists for the key
+- 503 with `db` / `claude` states otherwise, for the uptime monitor; no configuration detail exposed
