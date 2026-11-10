@@ -161,13 +161,14 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
     await expect(page.getByText(/verified sources/i)).toBeVisible()
   })
 
-  test('should show seerah context story card', async ({ page }) => {
-    await mockAnalyze(page, 'en')
+  test('shows no unsourced story card even if the API sends one (P390)', async ({ page }) => {
+    await mockAnalyze(page, 'en')            // the mock still carries a seerah_context string
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('button.bg-emerald-700').first().click()
-    await page.waitForSelector('text=/story behind/i', { timeout: 15000 })
-    await expect(page.getByText(/story behind/i)).toBeVisible()
+    await page.waitForSelector('text=/verified sources/i', { timeout: 15000 })
+    await expect(page.getByText(/story behind/i)).toHaveCount(0)
+    await expect(page.getByText(/Ar-Raheeq/i)).toHaveCount(0)
   })
 
   test('should show non-empty comment', async ({ page }) => {

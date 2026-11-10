@@ -2,7 +2,10 @@
 // Handles both:
 //   - FormData: image upload (image file + optional postText + lang)
 //   - JSON: text-only analysis (postText + lang)
-// Added: seerah_context field in Claude prompt
+// P390: seerah_context is no longer generated - always ''. It asked the model for a
+//   "story from the Prophet's life (from Ar-Raheeq Al-Makhtum)", a book it was never
+//   given, and the page stamped "Ar-Raheeq Al-Makhtum" on every result. Kept in the
+//   response shape so older clients do not break.
 // Fixed: P041 — new route was JSON-only, broke FormData image upload path
 // P092: Claude call mockable via MOCK_CLAUDE=1 (see playwright.config.ts + .githooks/pre-push)
 
@@ -119,7 +122,6 @@ const SYSTEM_PROMPT = `You are an expert Islamic scholar and hadith authenticati
 - Hadith sciences (mustalah al-hadith): isnad, matn, rijal criticism
 - The six major hadith collections (Kutub al-Sittah) and their gradings
 - Fabricated hadith patterns: no isnad, chain ending at Companion, reward inflation
-- The Seerah literature, especially Ar-Raheeq Al-Makhtum by Safiur Rahman al-Mubarakpuri
 - Compassionate, non-confrontational Islamic communication
 
 You respond ONLY with valid JSON. No markdown, no backticks, no preamble.`
@@ -216,14 +218,15 @@ Respond with ONLY this JSON (no markdown, no backticks):
     }
   ],
   "suggested_comment": "Compassionate non-confrontational reply. Include: (1) gentle correction, (2) authentic alternative, (3) verified source link. Written as if to a family member sharing in good faith.",
-  "seerah_context": "2-3 sentence story from the Prophet's life ﷺ (from Ar-Raheeq Al-Makhtum / Seerah) giving human emotional context to why this topic matters. Same language as all other fields. Empty string if no_hadith verdict."
+  "seerah_context": ""
 }
 
 RULES:
 1. URLs must be real deep-links — not homepages
 2. Tier 1: sunnah.com, dorar.net, hadeethenc.com
 3. Tier 2: islamqa.info, islamweb.net, yaqeeninstitute.org
-4. seerah_context must be warm and story-like — not academic
+4. seerah_context is always the empty string. Do not write any story, scene or
+   historical narrative anywhere in the response that the cited sources do not record.
 5. All text fields in language: ${lang}`
 
     // ── Build message content ─────────────────────────────────────────────────
@@ -257,6 +260,9 @@ RULES:
 
     // ── Override severity with deterministic scoring ───────────────────────────
     result.severity = getSeverity(result.verdict, result.confidence)
+
+    // P390: never an unsourced story, whatever the model returned
+    result.seerah_context = ''
 
     // ── Save fabricated/weak to queue ─────────────────────────────────────────
     if (['fabricated', 'weak'].includes(result.verdict) && process.env.MOCK_CLAUDE !== '1') {

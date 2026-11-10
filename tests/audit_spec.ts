@@ -12,7 +12,7 @@
  *   4. Prompt injection resistance — malicious input handling
  *   5. Content safety — no inappropriate output
  *   6. Severity consistency — verdict matches severity logic
- *   7. Seerah context quality — Ar-Raheeq Al-Makhtum field validation (added May 2026)
+ *   7. Seerah context - retired (P390): the field must stay empty
  *
  * AGENT RULE: When new API field added → add section here same day (QA_STANDARDS Section 3.6)
  */
@@ -254,84 +254,24 @@ test.describe('Severity Consistency (CT-GenAI)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SECTION 7: SEERAH CONTEXT QUALITY AUDIT (added May 2026)
-// Validates the seerah_context field added with Ar-Raheeq Al-Makhtum feature
-// AGENT RULE: This section must be updated whenever seerah_context prompt changes
+// SECTION 7: SEERAH CONTEXT - RETIRED (P390, 2026-11-10)
+// Until then this section REQUIRED a non-empty "story-like" seerah_context for
+// fabricated posts - a story the prompt sourced to Ar-Raheeq Al-Makhtum, a book the
+// model never saw. The field is now always '' and the page shows no story card.
 // ═══════════════════════════════════════════════════════════════════════════════
-test.describe('Seerah Context Quality (CT-GenAI)', () => {
+test.describe('Seerah Context - retired (P390)', () => {
   test.setTimeout(TIMEOUT + 10000)
 
-  test('seerah_context field must be present in response', async ({ request }) => {
+  test('seerah_context is present and always empty', async ({ request }) => {
+    for (const post of [CLEARLY_FABRICATED, 'Today I went to the market and bought some apples.']) {
+      const body = await analyze(request, post)
+      expect(body).toHaveProperty('seerah_context')
+      expect(body.seerah_context).toBe('')
+    }
+  })
+
+  test('no response field names a seerah book', async ({ request }) => {
     const body = await analyze(request, CLEARLY_FABRICATED)
-    expect(body).toHaveProperty('seerah_context')
-  })
-
-  test('seerah_context must be non-empty for fabricated hadiths', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED)
-    if (body.verdict !== 'no_hadith') {
-      expect(body.seerah_context).toBeTruthy()
-      expect(body.seerah_context.length).toBeGreaterThan(30)
-    }
-  })
-
-  test('seerah_context must be empty string for no_hadith verdict', async ({ request }) => {
-    const noHadithPost = 'Today I went to the market and bought some apples.'
-    const body = await analyze(request, noHadithPost)
-    if (body.verdict === 'no_hadith') {
-      expect(body.seerah_context || '').toBe('')
-    }
-  })
-
-  test('seerah_context must not contain JSON or code', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED)
-    const ctx = body.seerah_context || ''
-    expect(ctx).not.toContain('```')
-    expect(ctx).not.toContain('{')
-    expect(ctx).not.toContain('"verdict"')
-  })
-
-  test('seerah_context must be story-like, not academic (min 2 sentences)', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED)
-    const ctx = body.seerah_context || ''
-    if (ctx.length > 0) {
-      // At least 2 sentences (contains at least one period followed by space/end)
-      const sentenceCount = (ctx.match(/[.!?]+(\s|$)/g) || []).length
-      expect(sentenceCount).toBeGreaterThanOrEqual(1)
-      // Must mention Prophet ﷺ or reference Islamic history
-      const hasProphetRef = /prophet|ﷺ|muhammad|rasul|messenger/i.test(ctx) ||
-                            /пророк|расул/i.test(ctx) ||
-                            /نبي|رسول|محمد/.test(ctx) ||
-                            /payg.ambar|rasululloh/i.test(ctx)
-      expect(hasProphetRef,
-        `seerah_context does not reference the Prophet: ${ctx.substring(0, 100)}`
-      ).toBe(true)
-    }
-  })
-
-  test('seerah_context language matches requested lang (EN)', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED, 'en')
-    const ctx = body.seerah_context || ''
-    if (ctx.length > 0) {
-      const hasLatin = /[a-zA-Z]/.test(ctx)
-      expect(hasLatin, 'EN seerah_context missing Latin characters').toBe(true)
-    }
-  })
-
-  test('seerah_context language matches requested lang (AR)', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED, 'ar')
-    const ctx = body.seerah_context || ''
-    if (ctx.length > 0) {
-      const hasArabic = /[\u0600-\u06FF]/.test(ctx)
-      expect(hasArabic, 'AR seerah_context missing Arabic characters').toBe(true)
-    }
-  })
-
-  test('seerah_context language matches requested lang (RU)', async ({ request }) => {
-    const body = await analyze(request, CLEARLY_FABRICATED, 'ru')
-    const ctx = body.seerah_context || ''
-    if (ctx.length > 0) {
-      const hasCyrillic = /[А-Яа-я]/.test(ctx)
-      expect(hasCyrillic, 'RU seerah_context missing Cyrillic characters').toBe(true)
-    }
+    expect(JSON.stringify(body)).not.toMatch(/Raheeq|Makhtum|Uswa|Усваи/i)
   })
 })

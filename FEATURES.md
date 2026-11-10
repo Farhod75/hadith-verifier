@@ -16,3 +16,8 @@
 ### Health check that sees a retired model (P388) ✅
 - `/api/health` answers 200 only when the database answers AND the Claude model still exists for the key
 - 503 with `db` / `claude` states otherwise, for the uptime monitor; no configuration detail exposed
+
+### No generated "Story behind this hadith" (P390) ✅
+- The analysis no longer writes a story credited to Ar-Raheeq Al-Makhtum; `seerah_context` is always empty
+- Detailed, sourced explanations of a hadith are on hadithreels.com/hadith/<collection>/<number>
+

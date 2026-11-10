@@ -454,23 +454,8 @@ export default function Home() {
                     )}
                   </div>
                 )}
-                {result.seerah_context && (
-                  <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">📖</span>
-                      <div className="text-xs font-medium text-amber-800 uppercase tracking-wide">
-                        Story behind this hadith
-                      </div>
-                      <span className="text-xs text-amber-600 ml-auto">Ar-Raheeq Al-Makhtum</span>
-                    </div>
-                    <div className="text-sm text-amber-900 leading-relaxed" dir="auto">
-                      {result.seerah_context}
-                    </div>
-                    <div className="mt-3">
-                      <TTSPlayer text={result.seerah_context} lang={replyLang} label="Listen to story" />
-                    </div>
-                  </div>
-                )}
+                {/* P390: the generated "Story behind this hadith" card (labelled Ar-Raheeq Al-Makhtum,
+                    a book the model never saw) is gone. Sourced explanations live on hadithreels.com. */}
                 {result.suggested_comment && (
                   <div className="bg-white rounded-xl border border-gray-200 p-4">
                     <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.readyToPost} ({replyLang.toUpperCase()})</div>

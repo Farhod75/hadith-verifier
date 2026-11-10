@@ -3444,3 +3444,32 @@ fails) - RECOVERY.md lists it.
 **Tripwire:** a model id string outside lib/models.ts; /api/health 200 while /api/analyze fails.
 
 **Status:** FIXED
+
+---
+
+## PATTERN 390: every analysis carried a "Story behind this hadith" sourced to a book the model never saw
+
+**Date:** 2026-11-10  **Repo:** hadith-verifier  **Severity:** HIGH (content integrity, live)
+
+**What happened.** Since May 2026 the analyze prompt asked for `seerah_context`: "2-3 sentence story from the
+Prophet's life ﷺ (from Ar-Raheeq Al-Makhtum / Seerah) giving human emotional context", "warm and
+story-like - not academic", and the page printed it under "📖 Story behind this hadith" with a fixed
+"Ar-Raheeq Al-Makhtum" label - on every result, fabricated posts included. The model was never given the
+book. On 2026-11-10 the operator checked Bukhari #3624 (Fatima, "mistress of the believing women") and got
+a correct verdict - and under it a narrative ("in the last days of his life, knowing death was near, the
+Prophet ﷺ wanted to prepare his daughter... with such wisdom and tenderness...") credited to Ar-Raheeq.
+audit_spec.ts section 7 REQUIRED the story to be non-empty and "story-like" for fabricated posts.
+The same defect, in the reels generator, was P389 the same day.
+
+**Fix.** The prompt no longer names the book or asks for a story; rule 4 forbids any narrative the cited
+sources do not record; the route sets `seerah_context = ''` whatever the model returns (field kept for
+older clients); the card and its label are gone from the page. audit_spec section 7 now asserts the field
+is empty and that no field names a seerah book; the UI spec asserts no story card renders even when the
+API sends one. Sourced explanations live on hadithreels.com (HR P387/P389, HARD RULE 8).
+
+**Lesson:** a verifier that invents context under a book's name undoes the verdict it just gave.
+
+**Tripwire:** a book title in a prompt; a fixed source label in the UI over generated text.
+
+**Status:** FIXED on main, not deployed (waiting for the operator)
+
