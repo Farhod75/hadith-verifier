@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { GoogleAnalytics } from '@next/third-parties/google'
 import './globals.css'
 
@@ -38,6 +38,9 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
   },
 
+  // P396: installable, and once installed it appears in Android's Share menu (share_target)
+  manifest: '/manifest.webmanifest',
+
   robots: {
     index: true,
     follow: true,
@@ -59,6 +62,8 @@ export const metadata: Metadata = {
     'التحقق من الحديث',
   ],
 }
+
+export const viewport: Viewport = { themeColor: '#047857' }
 
 export default function RootLayout({
   children,

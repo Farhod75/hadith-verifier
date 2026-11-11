@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Hadith Verifier",
+  "short_name": "Hadith Verifier",
+  "description": "Check a hadith before you share it: authentic, weak or fabricated, with sources and a gentle reply. EN · RU · UZ · TJ · AR.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#047857",
+  "lang": "en",
+  "dir": "auto",
+  "categories": ["education", "books", "utilities"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}

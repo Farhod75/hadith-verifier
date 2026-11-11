@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { t, getDir, APP_LANGUAGES, type AppLang } from '@/lib/i18n'
 import SpeechInput from '@/components/SpeechInput'
 import TTSPlayer from '@/components/TTSPlayer'
+import InstallButton from '@/components/InstallButton'
+import { sharedText } from '@/lib/share'
 
 type ReplyLang = 'en' | 'uz' | 'ar' | 'ru' | 'tj'
 type Tab = 'analyze' | 'dua' | 'sources' | 'admin' | 'search'
@@ -109,6 +111,17 @@ export default function Home() {
 
   useEffect(() => { if (tab === 'admin') fetchQueue() }, [tab])
 
+  // P396: Android's Share menu opens the installed app at /?title=&text=&url= (app/manifest.ts
+  // share_target). Put what was shared into the post box, then drop it from the address bar so a
+  // reload does not bring it back. Nothing is analysed until the user presses the button.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const shared = sharedText(p.get('title'), p.get('text'), p.get('url'))
+    if (!shared) return
+    setTab('analyze'); setImage(null); setImagePreview(''); setPostText(shared)
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
   // Auto-sync replyLang when user switches app language
   // Maps appLang (6 codes) → replyLang (4 codes: en/uz/ar/ru)
   useEffect(() => {
@@ -205,7 +218,7 @@ export default function Home() {
         })
       }
       const data = await res.json()
-      if (data.error) { alert(data.error); return }
+      if (data.error) { alert(data.error); setLoading(false); return }   // P396: the spinner stayed on
       setResult(data)
       setStats(p => ({
         total:      p.total + 1,
@@ -234,7 +247,7 @@ export default function Home() {
         })
       }
       const data = await res.json()
-      if (data.error) { alert(data.error); return }
+      if (data.error) { alert(data.error); setDuaLoading(false); return }
       setDuaResult(data)
     } catch { alert('Analysis failed.') }
     setDuaLoading(false)
@@ -288,6 +301,7 @@ export default function Home() {
             <div><div className="text-lg font-semibold text-green-700">{stats.authentic}</div><div className="text-xs text-gray-500">{tr.statAuthentic}</div></div>
           </div>
         </div>
+        <InstallButton label={tr.installApp} />
       </header>
         {/* HadithReels cross-link banner */}
         <div className="bg-emerald-800 text-white text-xs text-center py-1.5 px-4">
@@ -472,6 +486,8 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                {/* P396: not a fatwa - the competitors say it, and it is true */}
+                <p data-testid="not-fatwa" className="text-xs text-gray-400 text-center px-2" dir="auto">{tr.notFatwa}</p>
               </div>
             )}
           </div>
@@ -652,6 +668,7 @@ export default function Home() {
                 { name: 'IslamQA.info', desc: 'Sheikh Saleh Al-Munajjid. 200,000+ fatwas.', url: 'https://islamqa.info' },
                 { name: 'IslamWeb.net', desc: 'Full takhrij: sanad, matn, narrator biography.', url: 'https://islamweb.net' },
                 { name: 'Yaqeen Institute', desc: 'Peer-reviewed Islamic scholarship.', url: 'https://yaqeeninstitute.org' },
+                { name: 'HadithAnswers.com', desc: 'Specific narrations answered by hadith specialists (Moulana Muhammad Abasoomar), since 2014.', url: 'https://hadithanswers.com' },
                 { name: 'Islamhouse.com', desc: 'Uzbek, Russian, Arabic, 100+ languages.', url: 'https://islamhouse.com' },
               ]},
               { tier: tr.tier3Title, sources: [

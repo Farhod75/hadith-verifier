@@ -93,6 +93,8 @@ export type Translations = {
   tier2Title: string
   tier3Title: string
   sourceAuthorityNote: string
+  notFatwa: string
+  installApp: string
 
   // Admin tab
   flaggedPostsQueue: string
@@ -200,6 +202,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: 'Tier 2 — Scholarly bodies',
     tier3Title: 'Tier 3 — Supporting sources',
     sourceAuthorityNote: 'AI prioritizes: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    notFatwa: 'This is an automated check, not a fatwa. For a ruling, ask a qualified scholar.',
+    installApp: 'Install app',
     flaggedPostsQueue: 'Flagged posts queue',
     refresh: 'Refresh',
     noFlaggedPosts: 'No flagged posts yet. Analyze posts to populate the queue.',
@@ -297,6 +301,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: '2-daraja — Olimlik fatvo organlari',
     tier3Title: "3-daraja — Qo'shimcha manbalar",
     sourceAuthorityNote: "Sun'iy intellekt quyidagi tartibda tekshiradi: Dorar.net → Sunnah.com → IslamQA → HadeethEnc",
+    notFatwa: 'Bu avtomatik tekshiruv, fatvo emas. Hukm uchun ilmli ulamoga murojaat qiling.',
+    installApp: 'Ilovani oʻrnatish',
     flaggedPostsQueue: 'Belgilangan postlar navbati',
     refresh: 'Yangilash',
     noFlaggedPosts: "Hali belgilangan postlar yo'q.",
@@ -394,6 +400,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: '2-Даража — Олимлик фатво органлари',
     tier3Title: '3-Даража — Қўшимча манбалар',
     sourceAuthorityNote: 'Сунъий интеллект қуйидаги тартибда текширади: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    notFatwa: 'Бу автоматик текширув, фатво эмас. Ҳукм учун илмли уламога мурожаат қилинг.',
+    installApp: 'Иловани ўрнатиш',
     flaggedPostsQueue: 'Белгиланган постлар навбати',
     refresh: 'Янгилаш',
     noFlaggedPosts: 'Ҳали белгиланган постлар йўқ.',
@@ -491,6 +499,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: 'Уровень 2 — Учёные органы фетв',
     tier3Title: 'Уровень 3 — Вспомогательные источники',
     sourceAuthorityNote: 'ИИ проверяет в порядке: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    notFatwa: 'Это автоматическая проверка, а не фетва. За решением обращайтесь к знающему учёному.',
+    installApp: 'Установить приложение',
     flaggedPostsQueue: 'Очередь помеченных постов',
     refresh: 'Обновить',
     noFlaggedPosts: 'Помеченных постов пока нет.',
@@ -588,6 +598,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: 'الدرجة الثانية — هيئات الفتوى العلمية',
     tier3Title: 'الدرجة الثالثة — المصادر الداعمة',
     sourceAuthorityNote: 'يتحقق الذكاء الاصطناعي بالترتيب: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    notFatwa: 'هذا فحص آلي وليس فتوى. للحكم الشرعي اسأل عالمًا مؤهلًا.',
+    installApp: 'تثبيت التطبيق',
     flaggedPostsQueue: 'قائمة المنشورات المُبلَّغ عنها',
     refresh: 'تحديث',
     noFlaggedPosts: 'لا توجد منشورات مُبلَّغ عنها بعد.',
@@ -685,6 +697,8 @@ const translations: Record<AppLang, Translations> = {
     tier2Title: 'Дараҷаи 2 — Мақомоти фатвои улamo',
     tier3Title: 'Дараҷаи 3 — Манбаҳои иловагӣ',
     sourceAuthorityNote: 'Зеҳни сунъӣ тибқи тартиб санҷад: Dorar.net → Sunnah.com → IslamQA → HadeethEnc',
+    notFatwa: 'Ин санҷиши худкор аст, на фатво. Барои ҳукм ба олими босалоҳият муроҷиат кунед.',
+    installApp: 'Насб кардани барнома',
     flaggedPostsQueue: 'Навбати паёмҳои қайдшуда',
     refresh: 'Навсозӣ',
     noFlaggedPosts: 'Ҳоло паёмҳои қайдшуда нест.',

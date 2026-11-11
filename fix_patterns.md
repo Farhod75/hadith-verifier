@@ -3473,3 +3473,47 @@ API sends one. Sourced explanations live on hadithreels.com (HR P387/P389, HARD 
 
 **Status:** FIXED on main, not deployed (waiting for the operator)
 
+---
+
+## PATTERN 396: the Telegram bot was a second, weaker verifier
+
+**Date:** 2026-11-11  **Repo:** hadith-verifier  **Severity:** MEDIUM (answers missing or failing; no wrong verdict found)
+
+**What happened.** Planning "forward the post to the bot" as HV's Share entry point (operator, after a
+competitor review on 2026-11-11) meant reading `telegram_bot.py`, unchanged in substance since v1.0:
+- its own short prompt and source list beside the site's - a second source policy nobody tested;
+- text messages only: a forwarded post with a photo and caption, or a screenshot, got no answer at all;
+- Markdown replies: an "_" or "*" anywhere in the model's text made Telegram refuse the message, and the
+  user saw "Analysis failed";
+- no Tajik, English by default, answered in group chats, nothing reached the admin queue.
+Found on the way: `/api/analyze` caps each IP at 20 checks an hour, and every bot request comes from one
+Railway IP - routed through the site, the bot would have stopped after 20 checks an hour for ALL its users.
+The page's spinner never stopped after an error answer (the handler returned before clearing it). The
+limit message had no Tajik and gave Uzbek only in Latin.
+While building, `lib/rate-limit.ts` - P366's limiter for /api/tts - was overwritten by the new analyze
+limiter because the path was not checked first. `git status` showed it as modified, not new; restored
+before any commit, and the new code went to `lib/analyze-limit.ts`. tts.spec.ts run green after.
+
+**Fix.**
+- The bot sends every check to `/api/analyze`: one prompt, one source policy, one queue. Text, captions,
+  photos and image files; reply language = `/lang_*` choice, else the post's own language, else
+  Telegram's; HTML with every model string escaped; messages split between blocks; 10 checks an hour per
+  user; private chats only; a video or a bare video link gets "not yet - send text or a screenshot".
+  `tests/python/test_telegram_bot.py`, 17 offline tests.
+- `/api/analyze`: a request with `x-hv-bot-key` equal to `HV_BOT_KEY` is one caller, `telegram-bot`, with a
+  200-an-hour cap; the global daily cap is unchanged and now counts only what it lets through.
+  `lib/analyze-limit.ts`, `tests/analyze-limit.spec.ts`.
+- Installable app: `public/manifest.webmanifest` with `share_target` (GET `/?title=&text=&url=`), icons,
+  an Install button where the browser offers it; a shared post lands in the post box (`lib/share.ts`).
+- "This is an automated check, not a fatwa" under every result (six languages) and in the bot.
+  HadithAnswers.com as a tier 2 source (prompt and Sources tab).
+- The spinner is cleared on an error answer. `tests/share.spec.ts`.
+
+**Lesson:** a second client with its own prompt is a second product that no test covers. And read
+before write: a "new" file path is checked before anything is written to it.
+
+**Tripwire:** a model call in HV outside `app/api/`; a file written without first checking the path.
+
+**Status:** built and tested on branch `share-features`; not merged, not deployed. Needs from the operator:
+`HV_BOT_KEY` (same value) in Vercel and Railway, `HV_API_URL` optional; the bot's @username for the
+profile lines.

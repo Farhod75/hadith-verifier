@@ -215,7 +215,7 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
   - Telegram bot integration
 
 ### Bot
-- `bot/telegram-bot.py` — hosted on Railway
+- `telegram_bot.py` — hosted on Railway; a thin client of `/api/analyze` since P396 (env: TELEGRAM_BOT_TOKEN, HV_BOT_KEY, HV_API_URL)
 - Triggers Slack alerts for CRITICAL severity
 
 ### Documentation

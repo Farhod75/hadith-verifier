@@ -21,3 +21,14 @@
 - The analysis no longer writes a story credited to Ar-Raheeq Al-Makhtum; `seerah_context` is always empty
 - Detailed, sourced explanations of a hadith are on hadithreels.com/hadith/<collection>/<number>
 
+### Telegram bot = the site's verifier (P396) - branch share-features
+- Forward any post to the bot: text, a photo with a caption, or a screenshot; it answers with the site's own analysis
+- Reply in the post's language (EN, RU, UZ Cyrillic, UZ Latin, TJ, AR) unless /lang_* chose one
+- "Not a fatwa" line under every answer
+
+### Installable app with the Share menu (P396) - branch share-features
+- "Install app" button where the browser offers it; once installed, HV is in Android's Share menu
+- A shared post lands in the post box; nothing is analysed until the user presses the button
+- HadithAnswers.com listed as a tier 2 source
+
+### Reel link check - planned (REEL_LINK_CHECK.md)

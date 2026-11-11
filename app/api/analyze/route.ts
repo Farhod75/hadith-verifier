@@ -14,6 +14,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { CLAUDE_MODEL } from '@/lib/models'   // P388: one place for the model id
 import { createClient } from '@supabase/supabase-js'
 import { queueRow } from '@/lib/queue-row'
+import { createRateLimiter, isBotRequest, BOT_CALLER } from '@/lib/analyze-limit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 // Deterministic mock for pre-push/CI tests (MOCK_CLAUDE=1) — skips the real API.
@@ -81,33 +82,8 @@ function mockAnalysis(lang: string) {
   }
 }
 
-// ─── Rate limiting (in-memory) ────────────────────────────────────────────────
-const globalDaily = { count: 0, date: '' }
-const ipHourly    = new Map<string, { count: number; hour: string }>()
-const DAILY_CAP   = 500
-const HOURLY_CAP  = 20
-
-function getRateLimitMsg(lang: string): string {
-  if (lang === 'ar') return 'تم تجاوز الحد اليومي. يُرجى المحاولة غداً.'
-  if (lang === 'ru') return 'Суточный лимит исчерпан. Попробуйте завтра.'
-  if (lang === 'uz' || lang === 'uz_cyrillic' || lang === 'uz_latin')
-    return 'Kunlik limit tugadi. Ertaga urinib ko\'ring.'
-  return 'Daily limit reached. Please try again tomorrow.'
-}
-
-function checkRateLimit(ip: string, lang: string): { limited: boolean; message: string } {
-  const today = new Date().toISOString().slice(0, 10)
-  const hour  = new Date().toISOString().slice(0, 13)
-  if (globalDaily.date !== today) { globalDaily.date = today; globalDaily.count = 0 }
-  if (globalDaily.count >= DAILY_CAP) return { limited: true, message: getRateLimitMsg(lang) }
-  globalDaily.count++
-  const ipEntry = ipHourly.get(ip) || { count: 0, hour: '' }
-  if (ipEntry.hour !== hour) { ipEntry.count = 0; ipEntry.hour = hour }
-  if (ipEntry.count >= HOURLY_CAP) return { limited: true, message: getRateLimitMsg(lang) }
-  ipEntry.count++
-  ipHourly.set(ip, ipEntry)
-  return { limited: false, message: '' }
-}
+// ─── Rate limiting (in-memory) - lib/analyze-limit.ts (P396) ─────────────────────
+const checkRateLimit = createRateLimiter()
 
 // ─── Severity scoring ─────────────────────────────────────────────────────────
 function getSeverity(verdict: string, confidence: string): string {
@@ -183,7 +159,9 @@ export async function POST(req: NextRequest) {
 
     // ── Rate limit (skipped under mock so test runs don't consume quota) ───────
     if (process.env.MOCK_CLAUDE !== '1') {
-      const { limited, message } = checkRateLimit(ip, lang)
+      // P396: the Telegram bot is one caller with its own cap, not one IP among many
+      const fromBot = isBotRequest(req.headers.get('x-hv-bot-key'), process.env.HV_BOT_KEY)
+      const { limited, message } = checkRateLimit(fromBot ? BOT_CALLER : ip, lang)
       if (limited) return NextResponse.json({ error: message }, { status: 429 })
     }
 
@@ -224,7 +202,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
 RULES:
 1. URLs must be real deep-links — not homepages
 2. Tier 1: sunnah.com, dorar.net, hadeethenc.com
-3. Tier 2: islamqa.info, islamweb.net, yaqeeninstitute.org
+3. Tier 2: islamqa.info, islamweb.net, yaqeeninstitute.org, hadithanswers.com (hadith specialists answering on specific narrations, e.g. https://hadithanswers.com/<slug>/)
 4. seerah_context is always the empty string. Do not write any story, scene or
    historical narrative anywhere in the response that the cited sources do not record.
 5. All text fields in language: ${lang}`
