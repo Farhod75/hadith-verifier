@@ -3514,9 +3514,8 @@ before write: a "new" file path is checked before anything is written to it.
 
 **Tripwire:** a model call in HV outside `app/api/`; a file written without first checking the path.
 
-**Status:** built and tested on branch `share-features`; not merged, not deployed. Needs from the operator:
-`HV_BOT_KEY` (same value) in Vercel and Railway, `HV_API_URL` optional; the bot's @username for the
-profile lines.
+**Status:** LIVE 2026-11-11 (main 667db5c). The Railway half was never used - see P398; `HV_BOT_KEY` is set
+in Vercel but only the reference Python bot reads it.
 
 ---
 
@@ -3548,8 +3547,9 @@ the Railway dashboard" was the first test of that claim.
 
 **Tripwire:** "hosted on X" in a doc with no health check, log or dashboard anyone has looked at.
 
-**Status:** built on branch `share-features`. Operator: Vercel Production env `TELEGRAM_VERIFIER_BOT_TOKEN`,
-`TELEGRAM_WEBHOOK_SECRET`; merge; run the script.
+**Status:** LIVE 2026-11-11. Env set by the operator, merged (667db5c), webhook registered (getWebhookInfo: no
+error); first live check answered in Uzbek. @HadithVerifierBot is linked from the Telegram channel, Instagram,
+YouTube, TikTok and the Facebook Page.
 
 ---
 
