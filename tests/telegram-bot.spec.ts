@@ -172,3 +172,19 @@ test('the webhook refuses a request without the secret', async ({ request }) => 
   const r = await request.post('/api/telegram/webhook', { data: { message: { message_id: 1, chat: { id: 1, type: 'private' }, text: 'hi' } } })
   expect([401, 503]).toContain(r.status())                 // 503 locally (no token), 401 in production
 })
+
+
+test('/start from an English or unknown app language greets in RU, UZ, TJ and EN (P399)', async () => {
+  for (const code of ['en', 'de', undefined]) {
+    const { deps, calls } = fakeDeps()
+    await handleMessage(msg({ text: '/start', from: { id: 1, language_code: code } }), deps)
+    const text = calls[0].body.text
+    expect(text).toContain('Перешлите пост')
+    expect(text).toContain('Ҳадисли постни')
+    expect(text).toContain('Постро бо ҳадис')
+    expect(text).toContain('Forward a post')
+  }
+  const tj = fakeDeps(); await handleMessage(msg({ text: '/start', from: { id: 1, language_code: 'tg' } }), tj.deps)
+  expect(tj.calls[0].body.text).toContain('Ба ман ҳар гуна постеро')
+  expect(tj.calls[0].body.text).not.toContain('Forward a post')
+})

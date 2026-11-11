@@ -135,6 +135,25 @@ export function welcomeText(lang: BotLang): string {
   return `${ui('welcome', lang)}\n\nhadithverifier.com`
 }
 
+/** P399: the welcome for a Telegram app in English or any language the bot does not speak.
+ *  The audience is in Russia and Central Asia but many phones run English, so the first
+ *  screen speaks all four of the bot's main languages. */
+export function welcomeMulti(): string {
+  return [
+    '🌙 <b>Hadith Verifier</b>',
+    '',
+    '🇷🇺 Перешлите пост с хадисом (текст, фото с подписью или скриншот) - скажу, достоверный он, слабый или выдуманный, с источниками и готовым ответом под пост.',
+    '',
+    '🇺🇿 Ҳадисли постни юборинг (матн, изоҳли расм ёки скриншот) - ишончлими, заифми ёки тўқимами, манбалари ва пост остига жавоб билан айтаман.',
+    '',
+    '🇹🇯 Постро бо ҳадис фиристед (матн, акс бо тавзеҳ ё скриншот) - мегӯям, ки боэътимод аст, заиф ё сохта, бо манбаъҳо ва ҷавоб барои зери пост.',
+    '',
+    '🇬🇧 Forward a post with a hadith (text, a photo with a caption, or a screenshot) - I\'ll tell you if it is authentic, weak or fabricated, with sources and a reply to paste under the post.',
+    '',
+    'hadithverifier.com',
+  ].join('\n')
+}
+
 export function esc(s: unknown): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

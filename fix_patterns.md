@@ -3550,3 +3550,22 @@ the Railway dashboard" was the first test of that claim.
 
 **Status:** built on branch `share-features`. Operator: Vercel Production env `TELEGRAM_VERIFIER_BOT_TOKEN`,
 `TELEGRAM_WEBHOOK_SECRET`; merge; run the script.
+
+---
+
+## PATTERN 399: the bot greeted a Central Asian audience in English
+
+**Date:** 2026-11-11  **Repo:** hadith-verifier  **Severity:** first impression (minutes after launch)
+
+**What happened.** The first live /start of @HadithVerifierBot (the operator's own phone, Telegram in
+English) got the English welcome. The welcome followed the Telegram app language, and many phones in
+Russia and Central Asia run English. The check itself answered in Uzbek, as the post was Uzbek.
+
+**Fix.** An English or unknown app language gets one short welcome in Russian, Uzbek, Tajik and English;
+ru / uz / tg / ar keep their own. 1 test.
+
+**Lesson:** the interface language of a phone is not the reader's language.
+
+**Tripwire:** a first screen in a single language chosen from the device.
+
+**Status:** FIXED

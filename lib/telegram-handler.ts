@@ -7,7 +7,7 @@
 import type { AnalyzeInput, AnalyzeOutcome } from '@/lib/analyze'
 import { rateLimitMessage } from '@/lib/analyze-limit'
 import {
-  type BotLang, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack, ui, welcomeText,
+  type BotLang, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack, ui, welcomeMulti, welcomeText,
 } from '@/lib/telegram-bot'
 
 export type TgMessage = {
@@ -68,7 +68,8 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
       await deps.send('sendMessage', { chat_id: chatId, text: ui('langNote', named[cmd]) })
       return
     }
-    await deps.send('sendMessage', { chat_id: chatId, text: welcomeText(appLang), ...html })
+    // P399: an English or unknown app language gets the four-language welcome
+    await deps.send('sendMessage', { chat_id: chatId, text: appLang === 'en' ? welcomeMulti() : welcomeText(appLang), ...html })
     return
   }
 
