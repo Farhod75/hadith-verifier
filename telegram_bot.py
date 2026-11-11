@@ -1,6 +1,10 @@
 """
-Hadith Verifier - Telegram bot
+Hadith Verifier - Telegram bot  (REFERENCE ONLY since P398)
 ==============================
+The live bot is app/api/telegram/webhook/route.ts on the HV deployment. This file was
+written for Railway, where the bot was documented as hosted but never ran. Kept for its
+tests and as a fallback if a long-running host is ever wanted.
+
 Forward the bot any post with a hadith - from Telegram, Instagram, Facebook or
 WhatsApp: text, a photo with a caption, or a screenshot. It answers with the
 same analysis hadithverifier.com gives: the verdict, the sources with deep

@@ -3517,3 +3517,36 @@ before write: a "new" file path is checked before anything is written to it.
 **Status:** built and tested on branch `share-features`; not merged, not deployed. Needs from the operator:
 `HV_BOT_KEY` (same value) in Vercel and Railway, `HV_API_URL` optional; the bot's @username for the
 profile lines.
+
+---
+
+## PATTERN 398: the bot had no server to run on - it now lives inside HV
+
+**Date:** 2026-11-11  **Repo:** hadith-verifier  **Severity:** the feature did not exist in production
+
+**What happened.** P396 rebuilt `telegram_bot.py` for Railway, where CLAUDE.md, README and RECOVERY.md
+all said the bot was hosted. Setting it up, the operator had never used Railway: the documented bot
+service most likely never ran, and three documents described it as live. Asking the operator to "open
+the Railway dashboard" was the first test of that claim.
+
+**Fix.** The bot is a webhook on the HV deployment itself - no second server, no second bill:
+- `lib/analyze.ts`: the analysis (prompt, model call, severity, queue) moved verbatim out of
+  `app/api/analyze/route.ts`; the route keeps parsing and the per-IP limit. Prompt text checked identical.
+- `app/api/telegram/webhook/route.ts`: checks `X-Telegram-Bot-Api-Secret-Token`, answers 200 at once and
+  runs the check in `after()`; private chats only; 503 without `TELEGRAM_VERIFIER_BOT_TOKEN` and
+  `TELEGRAM_WEBHOOK_SECRET`.
+- `lib/telegram-bot.ts` (words, language detection, HTML formatting, splitting) and
+  `lib/telegram-handler.ts` (one message, dependencies injected); 10 checks an hour per user, 300 a day
+  for the bot. Reply language = the post's, else the Telegram app's: a serverless function remembers
+  nothing between messages, so the `/lang_*` commands now explain that rule instead of storing a choice
+  that would silently revert.
+- `scripts/set-telegram-webhook.ps1`: the operator registers the webhook; it asks for the token and the
+  secret and never shows or saves them.
+- `tests/telegram-bot.spec.ts`: 16 tests. `telegram_bot.py` (P396) is kept for reference, not deployed.
+
+**Lesson:** a document saying where something runs is a claim; check the thing runs before building on it.
+
+**Tripwire:** "hosted on X" in a doc with no health check, log or dashboard anyone has looked at.
+
+**Status:** built on branch `share-features`. Operator: Vercel Production env `TELEGRAM_VERIFIER_BOT_TOKEN`,
+`TELEGRAM_WEBHOOK_SECRET`; merge; run the script.
