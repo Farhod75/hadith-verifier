@@ -9,8 +9,7 @@ gets "send the file or a screenshot".
 scraper of ours - but the video is still downloaded from the platform, which is what "no scraping" ruled
 out. Not built. The Plan section is the earlier design, kept for the
 record: Railway and ffmpeg were dropped because Scribe takes the video file itself. Still open: the link
-field on the site's Analyze tab (step 4), and shared storage for the daily caps (they live in one serverless
-instance's memory).
+field on the site's Analyze tab (step 4). The daily caps are counted in Supabase across instances (P411).
 
 Operator's item, 2026-11-11: "check a reel by its link". Fabricated hadiths now travel
 mostly as short videos, and the competitor Daleel AI checks video links. This file is the

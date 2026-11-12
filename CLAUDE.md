@@ -185,8 +185,9 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
   dismiss or delete flagged posts. A new route that reads `flagged_posts` or spends
   money and does not call it is the P364 defect again.
 - `app/api/tts/route.ts` — public (the Listen buttons), so NOT behind the admin session.
-  P366: cross-origin -> 403, 30 calls per caller per 10 min per instance -> 429
-  (`lib/rate-limit.ts`), voice from `lang` only. A global quota is still open.
+  P366: cross-origin -> 403, 30 calls per caller per 10 min -> 429, voice from `lang` only.
+  P411: the 30 is counted in Supabase across all instances (`lib/shared-limit.ts`, `bump_counter`);
+  `lib/rate-limit.ts` in memory is only the fallback when the counter is unreachable.
 - `lib/admin-session.ts` — signed HttpOnly cookie `hv_admin` (12 h), set by
   `app/api/admin/verify/route.ts` on a correct `ADMIN_PASSWORD`, cleared by
   `app/api/admin/logout/route.ts`. `next dev` on localhost passes without it (the
@@ -216,7 +217,7 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
 
 ### Bot
 - @HadithVerifierBot — `app/api/telegram/webhook/route.ts` on this deployment (P398); env TELEGRAM_VERIFIER_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET; register with `scripts/set-telegram-webhook.ps1`. `telegram_bot.py` (P396, Railway) is reference only - it never ran there.
-- Video check (P405): a video sent to the bot -> Telegram `getFile` (20 MB) -> ElevenLabs Scribe (`scribe_v2`, env ELEVENLABS_API_KEY, optional ELEVENLABS_STT_MODEL) -> the same `analyzePost`; every video LINK (Instagram, TikTok, YouTube, Facebook) gets "send the file" - TikTok's oEmbed has no caption since 2026 (P406). Caps: 3 videos per user per day, 30 a day (`lib/telegram-handler.ts`). Design and decisions: `REEL_LINK_CHECK.md`.
+- Video check (P405): a video sent to the bot -> Telegram `getFile` (20 MB) -> ElevenLabs Scribe (`scribe_v2`, env ELEVENLABS_API_KEY, optional ELEVENLABS_STT_MODEL) -> the same `analyzePost`; every video LINK (Instagram, TikTok, YouTube, Facebook) gets "send the file" - TikTok's oEmbed has no caption since 2026 (P406). Caps: 3 videos per user per day, 30 a day - counted in Supabase `rate_counters` (P411), not in memory. Design and decisions: `REEL_LINK_CHECK.md`.
 - Triggers Slack alerts for CRITICAL severity
 
 ### Documentation

@@ -3630,10 +3630,38 @@ existing text caps - a hard 30-a-day needs shared storage (OPEN_ITEMS).
    Instagram / YouTube / Facebook ("save the video and send it as a file, or a screenshot"); the oEmbed code
    and its two strings are removed. vt. and m.tiktok.com links are recognised as video links.
 2. The transcript label sent to the model says all punctuation and quotation marks are the recogniser's and
-   are no basis for a red flag. 2 tests replaced the 2 TikTok ones; 25 in the file.
+   are no basis for a red flag. 2 tests replaced the 2 TikTok ones; 27 in the file.
 
 **Lesson:** test a third-party endpoint for the field you will read, not for its status code.
 
 **Tripwire:** a probe whose only assertion is HTTP 200.
 
 **Status:** FIXED
+
+---
+
+## PATTERN 411: the paid limits lived in one instance's memory
+
+**Date:** 2026-11-12  **Repo:** hadith-verifier  **Severity:** cost control (open since P366, repeated by P405)
+
+**What happened.** /api/tts's per-caller limit (P366) and the bot's video caps (P405: 3 per user per day, 30 a
+day) were Maps in a serverless instance. A cold start reset them and each warm instance counted on its own,
+so the operator's "30 videos a day, I pay for every one" was not a hard 30.
+
+**Fix.**
+- supabase/migrations/20261112_rate_counters.sql: table `rate_counters (key, window_start, count)` with RLS
+  on and no policies; `bump_counter(key, window_seconds, cap)` adds one only while under the cap, in one
+  INSERT ... ON CONFLICT ... WHERE, and returns whether the call is allowed; windows aligned to UTC; old
+  windows dropped now and then. service_role only.
+- lib/shared-limit.ts: `bumpCounter()` -> true / false / null (unavailable: no env, error, timeout 3 s).
+- Bot: video caps on the shared counter (`bot:video:user:<id>`, `bot:video:all`). Counter unreachable: the
+  daily check refuses (money) and the per-user check steps aside, so nobody is told "you used 3" wrongly.
+- /api/tts: the shared counter is the quota (`tts:<ip>`, 30 per 10 min); the in-memory P366 limiter is the
+  fallback when it is unreachable, so the Listen buttons keep working.
+- 4 tests (30 in tests/telegram-bot.spec.ts). The bot's text caps stay in memory - text checks are cheap.
+
+**Lesson:** a limit that a restart forgets is a suggestion.
+
+**Tripwire:** a quota in a module-level Map on a serverless platform.
+
+**Status:** code FIXED; migration waiting for the operator (Supabase SQL editor).

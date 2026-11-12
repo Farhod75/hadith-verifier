@@ -33,8 +33,9 @@ export type Deps = {
   // P405: video files (REEL_LINK_CHECK.md)
   downloadMedia: (fileId: string) => Promise<Media | 'too_large' | null>
   transcribe: (media: Media) => Promise<{ text: string; languageCode?: string } | null>
-  videoUserAllowed: (userId: number) => boolean
-  videoDailyAllowed: () => boolean
+  // P411: answered by the shared Supabase counter in production (lib/shared-limit.ts)
+  videoUserAllowed: (userId: number) => boolean | Promise<boolean>
+  videoDailyAllowed: () => boolean | Promise<boolean>
 }
 
 export const USER_HOURLY_CAP = 10
@@ -119,8 +120,8 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
   if (kind === 'video') {
     // size first: a refusal Telegram would give anyway must not use up a check
     if ((media!.file_size ?? 0) > MAX_VIDEO_BYTES) { await say(ui('videoTooLarge', lang)); return }
-    if (!deps.videoUserAllowed(userId)) { await say(ui('videoUserLimit', lang)); return }
-    if (!deps.videoDailyAllowed()) { await say(ui('videoDailyLimit', lang)); return }
+    if (!(await deps.videoUserAllowed(userId))) { await say(ui('videoUserLimit', lang)); return }
+    if (!(await deps.videoDailyAllowed())) { await say(ui('videoDailyLimit', lang)); return }
   } else if (!deps.userAllowed(userId)) { await say(ui('userLimit', lang)); return }
   if (!deps.dailyAllowed()) { await say(rateLimitMessage(lang)); return }
 

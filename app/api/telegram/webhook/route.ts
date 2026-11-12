@@ -13,17 +13,25 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { analyzePost } from '@/lib/analyze'
 import {
-  MAX_VIDEO_BYTES, VIDEO_BOT_DAILY_CAP, createDailyCounter, createUserDailyLimiter, createUserLimiter, handleMessage,
+  MAX_VIDEO_BYTES, VIDEO_BOT_DAILY_CAP, VIDEO_USER_DAILY_CAP, createDailyCounter, createUserLimiter, handleMessage,
   type Media, type TgMessage,
 } from '@/lib/telegram-handler'
+import { bumpCounter } from '@/lib/shared-limit'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const userAllowed = createUserLimiter()
 const dailyAllowed = createDailyCounter()
-const videoUserAllowed = createUserDailyLimiter()
-const videoDailyAllowed = createDailyCounter(VIDEO_BOT_DAILY_CAP)
+// P411: the video caps are counted in Supabase, so every instance shares them and a cold
+// start does not reset them. If the counter cannot be reached, the DAILY check refuses
+// (videos cost money) and the per-user check steps aside, so the user is not told
+// "you have used 3" when they have not.
+const DAY = 86_400
+const videoUserAllowed = async (userId: number) =>
+  (await bumpCounter(`bot:video:user:${userId}`, DAY, VIDEO_USER_DAILY_CAP)) !== false
+const videoDailyAllowed = async () =>
+  (await bumpCounter('bot:video:all', DAY, VIDEO_BOT_DAILY_CAP)) === true
 const STT_MODEL = process.env.ELEVENLABS_STT_MODEL || 'scribe_v2'
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024        // the model's image limit
 

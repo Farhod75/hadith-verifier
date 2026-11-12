@@ -8,6 +8,7 @@ import {
 import {
   createDailyCounter, createUserDailyLimiter, createUserLimiter, handleMessage, type Deps, type TgMessage,
 } from '../lib/telegram-handler'
+import { bumpCounter, secondsToWindowEnd } from '../lib/shared-limit'
 
 const RESULT = {
   verdict: 'fabricated', confidence: 'high',
@@ -287,5 +288,42 @@ test.describe('video check (P405)', () => {
     const t = videoPostText('', 'Пророк сказал: "Кто не благодарит людей, тот не благодарит Аллаха. Благодари людей".')
     expect(t).toContain('quotation marks in it were added by the recogniser')
     expect(t).toContain('do not raise a red flag based on them')
+  })
+})
+
+// ---- P411: the shared counter -----------------------------------------------------
+test.describe('shared counter (P411)', () => {
+  const fakeFetch = (reply: unknown, ok = true) => {
+    const sent: any[] = []
+    const f = async (url: string, init: RequestInit) => { sent.push({ url, body: JSON.parse(String(init.body)) }); return { ok, json: async () => reply } }
+    return { f, sent }
+  }
+  const o = (f: any) => ({ url: 'https://x.supabase.co/', serviceKey: 'k', fetchImpl: f })
+
+  test('calls bump_counter with key, window and cap; true / false pass through', async () => {
+    const a = fakeFetch(true)
+    expect(await bumpCounter('bot:video:all', 86400, 30, o(a.f))).toBe(true)
+    expect(a.sent[0].url).toBe('https://x.supabase.co/rest/v1/rpc/bump_counter')
+    expect(a.sent[0].body).toEqual({ p_key: 'bot:video:all', p_window_seconds: 86400, p_cap: 30 })
+    expect(await bumpCounter('k', 60, 1, o(fakeFetch(false).f))).toBe(false)
+  })
+
+  test('an error, a non-boolean or no configuration is "unavailable" (null), never "allowed"', async () => {
+    expect(await bumpCounter('k', 60, 1, o(fakeFetch({ code: 'x' }, false).f))).toBeNull()
+    expect(await bumpCounter('k', 60, 1, o(fakeFetch('yes').f))).toBeNull()
+    expect(await bumpCounter('k', 60, 1, o(async () => { throw new Error('down') }))).toBeNull()
+    expect(await bumpCounter('k', 60, 1, { url: '', serviceKey: '' })).toBeNull()
+  })
+
+  test('window end is aligned to UTC', () => {
+    expect(secondsToWindowEnd(86400, Date.UTC(2026, 10, 12, 23, 59, 0))).toBe(60)
+    expect(secondsToWindowEnd(600, Date.UTC(2026, 10, 12, 0, 0, 0))).toBe(600)
+  })
+
+  test('the handler awaits asynchronous video limits', async () => {
+    const { deps, calls, downloads } = fakeDeps({ videoUserAllowed: async () => false })
+    await handleMessage(msg({ video: { file_id: 'v' } }), deps)
+    expect(calls[0].body.text).toContain('3 проверки видео')
+    expect(downloads).toHaveLength(0)
   })
 })

@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createLimiter, clientKey } from '@/lib/rate-limit'
+import { bumpCounter, secondsToWindowEnd } from '@/lib/shared-limit'
 
 export const runtime = 'nodejs'
 
@@ -54,7 +55,7 @@ function sanitizeForTTS(text: string): string {
     .trim()
 }
 
-const TTS_LIMIT = 30                 // calls per caller per window, per instance
+const TTS_LIMIT = 30                 // calls per caller per window (P411: across all instances)
 const TTS_WINDOW_MS = 10 * 60 * 1000
 const limiter = createLimiter(TTS_LIMIT, TTS_WINDOW_MS)
 
@@ -69,10 +70,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'cross-origin request refused' }, { status: 403 })
   }
   const who = clientKey(req.headers)
-  if (!limiter.take(who)) {
+  // P411: the shared Supabase counter is the quota; the in-memory P366 limiter is the
+  // fallback when the counter cannot be reached (null), so the Listen buttons keep working.
+  const windowSec = TTS_WINDOW_MS / 1000
+  const shared = await bumpCounter(`tts:${who}`, windowSec, TTS_LIMIT)
+  const allowed = shared === null ? limiter.take(who) : shared
+  if (!allowed) {
+    const retry = shared === null ? limiter.retryAfter(who) : secondsToWindowEnd(windowSec)
     return NextResponse.json(
       { error: 'Too many listen requests - try again later.' },
-      { status: 429, headers: { 'Retry-After': String(limiter.retryAfter(who)) } }
+      { status: 429, headers: { 'Retry-After': String(retry) } }
     )
   }
   try {
