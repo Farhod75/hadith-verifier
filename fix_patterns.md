@@ -3664,4 +3664,5 @@ so the operator's "30 videos a day, I pay for every one" was not a hard 30.
 
 **Tripwire:** a quota in a module-level Map on a serverless platform.
 
-**Status:** code FIXED; migration waiting for the operator (Supabase SQL editor).
+**Status:** FIXED. Migration run 2026-11-12 01:03 (self-test true, true, false); through the API with the
+service key: cap 1 -> true then false; the anon key -> 401. Deployed d9e928c.
