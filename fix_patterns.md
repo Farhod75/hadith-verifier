@@ -3569,3 +3569,42 @@ ru / uz / tg / ar keep their own. 1 test.
 **Tripwire:** a first screen in a single language chosen from the device.
 
 **Status:** FIXED
+
+---
+
+## PATTERN 405: the bot told every video "I can't check video yet"
+
+**Date:** 2026-11-11  **Repo:** hadith-verifier  **Severity:** feature gap (fabricated hadiths travel mostly as reels)
+
+**What happened.** P396 had the bot answer any video or video link with "I can't check video yet". The
+operator decided the design the same day (REEL_LINK_CHECK.md "Decided"): ElevenLabs Scribe for speech,
+no scraping of Instagram / YouTube, 3 video checks per user per day and 30 a day in total.
+
+**Fix.**
+- A video, video note, GIF, voice message, audio or a video sent as a file: `getFile` (Telegram's 20 MB cap),
+  the file itself to Scribe (`POST /v1/speech-to-text`, `scribe_v2`, env `ELEVENLABS_STT_MODEL` overrides) -
+  no ffmpeg, no second server. The model gets the caption and the transcript, labelled; the answer shows
+  the transcript ("what I heard, may contain errors") so the user sees what was checked. Reply language:
+  the caption's, else the transcript's, else Scribe's language_code, else the Telegram app's.
+- Over 20 MB: answered before download and before any limit is used; a size Telegram reports only at
+  `getFile` ("file is too big") gets the same answer.
+- No speech and no caption: says so, no model call.
+- A TikTok link: the caption from TikTok's public oEmbed (a short vm./vt. link is followed once), checked as
+  text, with the line "only the caption was checked". A caption of hashtags only: the honest fallback.
+- Instagram / YouTube / Facebook links: "save the video and send it to me, or a screenshot".
+- Limits in `lib/telegram-handler.ts`: VIDEO_USER_DAILY_CAP 3, VIDEO_BOT_DAILY_CAP 30, on top of the bot's 300.
+- Welcome texts now say a video can be sent. 26 tests in tests/telegram-bot.spec.ts (10 new).
+
+**Verified before building:** a published RU reel (Abu Dawud #4811, 8.6 MB mp4) sent to Scribe exactly as the
+route sends it (Node fetch + FormData): 200 in 4.4 s, `rus` 0.97, the matn transcribed word for word under the
+nasheed. A video with NO audio stream gets 400 "File is corrupted" from Scribe - the route reads that as a
+failed check, which is the right answer for it.
+
+**Lesson:** the cheapest version of a feature is often the one where the user hands you the file.
+
+**Tripwire:** a limit that lives in one serverless instance's memory - see Status.
+
+**Status:** BUILT, waiting for the operator: `ELEVENLABS_API_KEY` is not in the HV Vercel project (checked with
+`vercel env ls production`). Known limit: the counters are per instance and reset on a cold start, like the
+existing text caps - a hard 30-a-day needs shared storage (OPEN_ITEMS).
+

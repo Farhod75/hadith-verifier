@@ -1,4 +1,10 @@
-# Reel link check - plan (not built)
+# Reel link check
+
+**Status 2026-11-11: phase 1 BUILT (P405)** - forwarded videos (speech + caption) and TikTok captions in
+@HadithVerifierBot, by the "Decided" section below. The Plan section is the earlier design, kept for the
+record: Railway and ffmpeg were dropped because Scribe takes the video file itself. Still open: the link
+field on the site's Analyze tab (step 4), and shared storage for the daily caps (they live in one serverless
+instance's memory).
 
 Operator's item, 2026-11-11: "check a reel by its link". Fabricated hadiths now travel
 mostly as short videos, and the competitor Daleel AI checks video links. This file is the
@@ -33,7 +39,21 @@ into the picture. A check has to reach at least the first two.
 4. **The site:** a link field on the Analyze tab that calls the same worker (Vercel cannot run
    ffmpeg or long downloads; the worker lives beside the bot on Railway).
 
-## Decisions for the operator
+## Decided (operator, 2026-11-11)
+
+- **Speech-to-text: ElevenLabs Scribe.** Already paid for, strong on Uzbek, and it accepts a
+  video file directly - so no ffmpeg and no Railway: the bot webhook inside HV (P398) fetches
+  the file from Telegram (`getFile`, up to 20 MB) and sends it to Scribe. Verify Scribe's
+  accepted formats and size limit against its docs before building.
+- **No scraping of Instagram / YouTube (phase 2 dropped).** A video forwarded to the bot is
+  checked in full (speech + caption); a TikTok link by its caption (oEmbed); any other link
+  gets the honest answer "send the video to the bot as a file, or a screenshot".
+- **Free limits, low on purpose (the operator pays every check):** 3 video checks per user
+  per DAY, 30 per day in total; when the total is used up, the answer is "today's video
+  limit is used up - send the text or a screenshot". Raise them only with the paid tier
+  (Google Play subscription, OPEN_ITEMS), not before.
+
+## Decisions for the operator (as first written)
 
 - Speech-to-text provider: OpenAI `whisper-1` / `gpt-4o-mini-transcribe` (about $0.003-0.006/min,
   good Arabic/Russian, Uzbek and Tajik weaker) or ElevenLabs Scribe (already paid for, strong on

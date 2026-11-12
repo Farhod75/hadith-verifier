@@ -7,8 +7,12 @@
 import type { AnalyzeInput, AnalyzeOutcome } from '@/lib/analyze'
 import { rateLimitMessage } from '@/lib/analyze-limit'
 import {
-  type BotLang, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack, ui, welcomeMulti, welcomeText,
+  type BotLang, MIN_TEXT, classifyInput, detectPostLang, findTikTokUrl, formatBlocks, langFromTelegram, pack, scribeLang,
+  ui, videoPostText, welcomeMulti, welcomeText,
 } from '@/lib/telegram-bot'
+
+type TgFile = { file_id: string; file_size?: number; mime_type?: string; file_name?: string; duration?: number }
+export type Media = { bytes: Uint8Array; fileName: string; mimeType: string }
 
 export type TgMessage = {
   message_id: number
@@ -16,8 +20,8 @@ export type TgMessage = {
   from?: { id: number; language_code?: string }
   text?: string; caption?: string
   photo?: { file_id: string; file_size?: number }[]
-  document?: { file_id: string; mime_type?: string; file_size?: number }
-  video?: unknown; video_note?: unknown; animation?: unknown; voice?: unknown; audio?: unknown
+  document?: TgFile
+  video?: TgFile; video_note?: TgFile; animation?: TgFile; voice?: TgFile; audio?: TgFile
 }
 
 export type Deps = {
@@ -26,10 +30,40 @@ export type Deps = {
   downloadImage: (fileId: string) => Promise<{ base64: string; mediaType: string } | null>
   userAllowed: (userId: number) => boolean
   dailyAllowed: () => boolean
+  // P405: video and TikTok links (REEL_LINK_CHECK.md)
+  downloadMedia: (fileId: string) => Promise<Media | 'too_large' | null>
+  transcribe: (media: Media) => Promise<{ text: string; languageCode?: string } | null>
+  tiktokCaption: (url: string) => Promise<string | null>
+  videoUserAllowed: (userId: number) => boolean
+  videoDailyAllowed: () => boolean
 }
 
 export const USER_HOURLY_CAP = 10
 export const BOT_DAILY_CAP = 300
+// P405, operator 2026-11-11: low on purpose - he pays for every check. Raise only with the paid tier.
+export const VIDEO_USER_DAILY_CAP = 3
+export const VIDEO_BOT_DAILY_CAP = 30
+export const MAX_VIDEO_BYTES = 20 * 1024 * 1024     // Bot API getFile's limit
+
+/** At most `cap` per user per UTC day, in this instance's memory. */
+export function createUserDailyLimiter(cap = VIDEO_USER_DAILY_CAP) {
+  let day = ''
+  const hits = new Map<number, number>()
+  return (userId: number, now = new Date()) => {
+    const d = now.toISOString().slice(0, 10)
+    if (d !== day) { day = d; hits.clear() }
+    const n = hits.get(userId) || 0
+    if (n >= cap) return false
+    hits.set(userId, n + 1)
+    return true
+  }
+}
+
+/** The video, voice or audio a message carries (a video sent as a file counts), or null. */
+export function mediaOf(msg: TgMessage): TgFile | null {
+  const doc = msg.document && /^(video|audio)\//.test(msg.document.mime_type || '') ? msg.document : null
+  return msg.video || msg.video_note || msg.animation || msg.voice || msg.audio || doc || null
+}
 
 /** At most `cap` checks per user per rolling hour, in this instance's memory. */
 export function createUserLimiter(cap = USER_HOURLY_CAP, windowMs = 3_600_000) {
@@ -75,14 +109,21 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
 
   const imageFile = msg.photo?.length ? msg.photo[msg.photo.length - 1].file_id
     : (msg.document && (msg.document.mime_type || '').startsWith('image/')) ? msg.document.file_id : null
-  const hasVideo = !!(msg.video || msg.video_note || msg.animation || msg.voice || msg.audio)
-  const kind = classifyInput(text, !!imageFile, hasVideo)
-  const lang: BotLang = detectPostLang(text) || appLang
+  const media = mediaOf(msg)
+  const kind = classifyInput(text, !!imageFile, !!media)
+  let lang: BotLang = detectPostLang(text) || appLang
+  const userId = msg.from?.id ?? chatId
+  const say = (t: string) => deps.send('sendMessage', { chat_id: chatId, text: t })
 
-  if (kind === 'too_short') { await deps.send('sendMessage', { chat_id: chatId, text: ui('tooShort', lang) }); return }
-  if (kind === 'video_only') { await deps.send('sendMessage', { chat_id: chatId, text: ui('noMedia', lang) }); return }
-  if (!deps.userAllowed(msg.from?.id ?? chatId)) { await deps.send('sendMessage', { chat_id: chatId, text: ui('userLimit', lang) }); return }
-  if (!deps.dailyAllowed()) { await deps.send('sendMessage', { chat_id: chatId, text: rateLimitMessage(lang) }); return }
+  if (kind === 'too_short') { await say(ui('tooShort', lang)); return }
+  if (kind === 'other_link') { await say(ui('otherLink', lang)); return }
+  if (kind === 'video') {
+    // size first: a refusal Telegram would give anyway must not use up a check
+    if ((media!.file_size ?? 0) > MAX_VIDEO_BYTES) { await say(ui('videoTooLarge', lang)); return }
+    if (!deps.videoUserAllowed(userId)) { await say(ui('videoUserLimit', lang)); return }
+    if (!deps.videoDailyAllowed()) { await say(ui('videoDailyLimit', lang)); return }
+  } else if (!deps.userAllowed(userId)) { await say(ui('userLimit', lang)); return }
+  if (!deps.dailyAllowed()) { await say(rateLimitMessage(lang)); return }
 
   const status = await deps.send('sendMessage', { chat_id: chatId, text: ui('checking', lang), reply_parameters: { message_id: msg.message_id } })
   const statusId: number | undefined = status?.result?.message_id
@@ -93,15 +134,38 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
   try {
     await deps.send('sendChatAction', { chat_id: chatId, action: 'typing' })
     let image: { base64: string; mediaType: string } | null = null
+    let postText = text
+    const extra: { transcript?: string; note?: string } = {}
     if (kind === 'image' && imageFile) {
       image = await deps.downloadImage(imageFile)
       if (!image) { await replace({ text: ui('failed', lang) }); return }
     }
+    if (kind === 'video') {
+      const file = await deps.downloadMedia(media!.file_id)
+      if (file === 'too_large') { await replace({ text: ui('videoTooLarge', lang) }); return }
+      if (!file) { await replace({ text: ui('failed', lang) }); return }
+      const heard = await deps.transcribe(file)
+      if (!heard) { await replace({ text: ui('failed', lang) }); return }
+      const transcript = (heard.text || '').trim()
+      if (transcript.length < MIN_TEXT && text.trim().length < MIN_TEXT) { await replace({ text: ui('noSpeech', lang) }); return }
+      lang = detectPostLang(text) || detectPostLang(transcript) || scribeLang(heard.languageCode) || appLang
+      postText = videoPostText(text, transcript)
+      extra.transcript = transcript
+    }
+    if (kind === 'tiktok_link') {
+      const caption = (await deps.tiktokCaption(findTikTokUrl(text)!)) || ''
+      if (caption.replace(/#[^\s#]+|@\w+|https?:\/\/\S+/g, '').trim().length < MIN_TEXT) {
+        await replace({ text: ui('tiktokEmpty', lang) }); return
+      }
+      lang = detectPostLang(caption) || lang
+      postText = `Caption of the TikTok video:\n${caption.trim()}`
+      extra.note = ui('tiktokCaptionOnly', lang)
+    }
     const outcome = await deps.analyze({
-      postText: text, lang, imageBase64: image?.base64, imageMediaType: image?.mediaType,
+      postText, lang, imageBase64: image?.base64, imageMediaType: image?.mediaType,
     })
     if (!outcome.ok) { await replace({ text: ui('failed', lang) }); return }
-    const messages = pack(formatBlocks(outcome.result, lang))
+    const messages = pack(formatBlocks(outcome.result, lang, extra))
     const first = await replace({ text: messages[0], ...html })
     if (first && first.ok === false) {
       // Telegram refused the HTML (it should not - everything is escaped): send it as plain text

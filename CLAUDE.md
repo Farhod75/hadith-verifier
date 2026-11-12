@@ -216,6 +216,7 @@ AI tool detecting fabricated or weak hadiths on social media (FB, Instagram, Wha
 
 ### Bot
 - @HadithVerifierBot — `app/api/telegram/webhook/route.ts` on this deployment (P398); env TELEGRAM_VERIFIER_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET; register with `scripts/set-telegram-webhook.ps1`. `telegram_bot.py` (P396, Railway) is reference only - it never ran there.
+- Video check (P405): a video sent to the bot -> Telegram `getFile` (20 MB) -> ElevenLabs Scribe (`scribe_v2`, env ELEVENLABS_API_KEY, optional ELEVENLABS_STT_MODEL) -> the same `analyzePost`; TikTok links by oEmbed caption; other links get "send the file". Caps: 3 videos per user per day, 30 a day (`lib/telegram-handler.ts`). Design and decisions: `REEL_LINK_CHECK.md`.
 - Triggers Slack alerts for CRITICAL severity
 
 ### Documentation

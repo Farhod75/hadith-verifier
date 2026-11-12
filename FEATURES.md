@@ -32,4 +32,9 @@
 - A shared post lands in the post box; nothing is analysed until the user presses the button
 - HadithAnswers.com listed as a tier 2 source
 
-### Reel link check - planned (REEL_LINK_CHECK.md)
+### Video check in the bot (P405) - built 2026-11-11, live once ELEVENLABS_API_KEY is on Vercel
+- Send the video itself to @HadithVerifierBot (up to 20 MB, Telegram's limit): the speech is transcribed
+  (ElevenLabs Scribe) and checked together with the caption; the transcript is shown in the answer
+- A TikTok link: its caption is checked, and the answer says only the caption was
+- Instagram / YouTube / Facebook links: the bot asks for the video file or a screenshot (no scraping)
+- Free limits: 3 video checks per user per day, 30 a day in total (REEL_LINK_CHECK.md)

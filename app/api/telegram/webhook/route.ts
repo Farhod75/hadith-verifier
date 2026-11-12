@@ -5,19 +5,26 @@
 // slow analysis. Private chats only - in a group the bot would answer every message.
 //
 // Env (Vercel, Production): TELEGRAM_VERIFIER_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET.
-// Without both the route answers 503 and does nothing. Registration:
+// Without both the route answers 503 and does nothing.
+// P405: ELEVENLABS_API_KEY for video speech (Scribe); without it a video gets "check failed". Registration:
 // scripts/set-telegram-webhook.ps1 (the operator runs it; it holds the token).
 
 import { NextRequest, NextResponse, after } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { analyzePost } from '@/lib/analyze'
-import { createDailyCounter, createUserLimiter, handleMessage, type TgMessage } from '@/lib/telegram-handler'
+import {
+  MAX_VIDEO_BYTES, VIDEO_BOT_DAILY_CAP, createDailyCounter, createUserDailyLimiter, createUserLimiter, handleMessage,
+  type Media, type TgMessage,
+} from '@/lib/telegram-handler'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const userAllowed = createUserLimiter()
 const dailyAllowed = createDailyCounter()
+const videoUserAllowed = createUserDailyLimiter()
+const videoDailyAllowed = createDailyCounter(VIDEO_BOT_DAILY_CAP)
+const STT_MODEL = process.env.ELEVENLABS_STT_MODEL || 'scribe_v2'
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024        // the model's image limit
 
 function secretMatches(header: string | null, secret: string): boolean {
@@ -60,7 +67,56 @@ export async function POST(req: NextRequest) {
     return { base64: bytes.toString('base64'), mediaType }
   }
 
-  after(() => handleMessage(msg, { send, analyze: analyzePost, downloadImage, userAllowed, dailyAllowed })
+  // P405: the video itself goes to Scribe (it accepts MP4/MOV/WebM/OGG directly - no ffmpeg)
+  const downloadMedia = async (fileId: string): Promise<Media | 'too_large' | null> => {
+    const f = await send('getFile', { file_id: fileId })
+    if (!f?.ok) return /too big/i.test(f?.description || '') ? 'too_large' : null
+    const path: string | undefined = f.result?.file_path
+    if (!path) return null
+    if ((f.result.file_size ?? 0) > MAX_VIDEO_BYTES) return 'too_large'
+    const r = await fetch(`https://api.telegram.org/file/bot${token}/${path}`, { signal: AbortSignal.timeout(20_000) })
+    if (!r.ok) return null
+    const bytes = new Uint8Array(await r.arrayBuffer())
+    if (bytes.length > MAX_VIDEO_BYTES) return 'too_large'
+    const fileName = path.split('/').pop() || 'video.mp4'
+    const ext = fileName.split('.').pop()?.toLowerCase()
+    const mimeType = ({ mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', oga: 'audio/ogg', ogg: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4' } as Record<string, string>)[ext || ''] || 'application/octet-stream'
+    return { bytes, fileName, mimeType }
+  }
+  const transcribe = async (media: Media) => {
+    const key = process.env.ELEVENLABS_API_KEY
+    if (!key) { console.error('telegram bot: ELEVENLABS_API_KEY not set'); return null }
+    const form = new FormData()
+    form.append('model_id', STT_MODEL)
+    form.append('tag_audio_events', 'false')
+    form.append('file', new Blob([media.bytes as BlobPart], { type: media.mimeType }), media.fileName)
+    const r = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+      method: 'POST', headers: { 'xi-api-key': key }, body: form, signal: AbortSignal.timeout(30_000),
+    })
+    if (!r.ok) { console.error('telegram bot: scribe', r.status, (await r.text().catch(() => '')).slice(0, 200)); return null }
+    const j = await r.json().catch(() => null)
+    return j ? { text: String(j.text || ''), languageCode: j.language_code } : null
+  }
+  const tiktokCaption = async (url: string) => {
+    const oembed = async (u: string) => {
+      const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(8_000) })
+      if (!r.ok) return null
+      const j = await r.json().catch(() => null)
+      return typeof j?.title === 'string' && j.title.trim() ? j.title : null
+    }
+    try {
+      const first = await oembed(url)
+      if (first) return first
+      // a short link (vm./vt.tiktok.com): follow it to the video page and ask again
+      const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8_000) })
+      return r.url && r.url !== url ? await oembed(r.url.split('?')[0]) : null
+    } catch (e: any) { console.error('telegram bot: tiktok', e?.message); return null }
+  }
+
+  after(() => handleMessage(msg, {
+    send, analyze: analyzePost, downloadImage, userAllowed, dailyAllowed,
+    downloadMedia, transcribe, tiktokCaption, videoUserAllowed, videoDailyAllowed,
+  })
     .catch(e => console.error('telegram bot:', e?.message)))
   return NextResponse.json({ ok: true })
 }

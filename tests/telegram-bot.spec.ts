@@ -3,9 +3,11 @@
 // (no server, no network), plus the webhook route refusing anyone without the secret.
 import { test, expect } from '@playwright/test'
 import {
-  LANGS, UI, VERDICT_LABEL, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack,
+  LANGS, UI, VERDICT_LABEL, classifyInput, detectPostLang, findTikTokUrl, formatBlocks, langFromTelegram, pack, scribeLang,
 } from '../lib/telegram-bot'
-import { createDailyCounter, createUserLimiter, handleMessage, type Deps, type TgMessage } from '../lib/telegram-handler'
+import {
+  createDailyCounter, createUserDailyLimiter, createUserLimiter, handleMessage, type Deps, type TgMessage,
+} from '../lib/telegram-handler'
 
 const RESULT = {
   verdict: 'fabricated', confidence: 'high',
@@ -47,10 +49,13 @@ test.describe('bot helpers (P398)', () => {
   test('what the user sent', () => {
     expect(classifyInput('', true, false)).toBe('image')
     expect(classifyInput('Пророк сказал: кто прочитает эту суру', false, false)).toBe('text')
-    expect(classifyInput('https://www.instagram.com/reel/DeuKjPEBFKT/', false, false)).toBe('video_only')
-    expect(classifyInput('', false, true)).toBe('video_only')
+    expect(classifyInput('https://www.instagram.com/reel/DeuKjPEBFKT/', false, false)).toBe('other_link')
+    expect(classifyInput('', false, true)).toBe('video')                       // P405
+    expect(classifyInput('Пророк сказал: кто прочитает эту суру', false, true)).toBe('video')
     expect(classifyInput('ok', false, false)).toBe('too_short')
-    expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://www.tiktok.com/@x/video/1', false, false)).toBe('text')
+    expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://www.tiktok.com/@x/video/1', false, false)).toBe('tiktok_link')
+    expect(classifyInput('https://vm.tiktok.com/ZMabc123/', false, false)).toBe('tiktok_link')
+    expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://youtu.be/abc', false, false)).toBe('text')
   })
 
   test('every model string is escaped; Markdown characters are harmless', () => {
@@ -105,15 +110,21 @@ test.describe('bot helpers (P398)', () => {
 function fakeDeps(over: Partial<Deps> = {}) {
   const calls: { method: string; body: any }[] = []
   const analyzed: any[] = []
+  const downloads: number[] = []
   const deps: Deps = {
     send: async (method, body) => { calls.push({ method, body }); return { ok: true, result: { message_id: 99 } } },
     analyze: async (input) => { analyzed.push(input); return { ok: true, result: RESULT } },
     downloadImage: async () => ({ base64: 'QUJD', mediaType: 'image/jpeg' }),
     userAllowed: () => true,
     dailyAllowed: () => true,
+    downloadMedia: async () => { downloads.push(1); return { bytes: new Uint8Array([1, 2, 3]), fileName: 'file_1.mp4', mimeType: 'video/mp4' } },
+    transcribe: async () => ({ text: 'Пророк, мир ему, сказал: кто прочитает Фатиху четыре раза, получит награду за четыре тысячи дней', languageCode: 'rus' }),
+    tiktokCaption: async () => 'Пророк сказал: кто прочитает эту суру семь раз перед сном, тому простятся грехи #hadith',
+    videoUserAllowed: () => true,
+    videoDailyAllowed: () => true,
     ...over,
   }
-  return { deps, calls, analyzed }
+  return { deps, calls, analyzed, downloads }
 }
 const msg = (m: Partial<TgMessage>): TgMessage => ({ message_id: 5, chat: { id: 7, type: 'private' }, from: { id: 1, language_code: 'ru' }, ...m })
 
@@ -138,11 +149,11 @@ test.describe('bot handler (P398)', () => {
     expect(analyzed[0].lang).toBe('ru')                    // no text: the Telegram app language
   })
 
-  test('a bare reel link gets "not yet" and no model call', async () => {
+  test('an Instagram reel link gets "send the video itself" and no model call (P405)', async () => {
     const { deps, calls, analyzed } = fakeDeps()
     await handleMessage(msg({ text: 'https://www.instagram.com/reel/DeuKjPEBFKT/', from: { id: 1, language_code: 'uz' } }), deps)
     expect(analyzed).toHaveLength(0)
-    expect(calls[0].body.text).toContain('Видео')
+    expect(calls[0].body.text).toContain('Видеони сақлаб')
   })
 
   test('/start shows the welcome; /lang_tj explains the language rule in Tajik', async () => {
@@ -187,4 +198,100 @@ test('/start from an English or unknown app language greets in RU, UZ, TJ and EN
   const tj = fakeDeps(); await handleMessage(msg({ text: '/start', from: { id: 1, language_code: 'tg' } }), tj.deps)
   expect(tj.calls[0].body.text).toContain('Ба ман ҳар гуна постеро')
   expect(tj.calls[0].body.text).not.toContain('Forward a post')
+})
+
+
+// ---- P405: video files and TikTok links (REEL_LINK_CHECK.md) -------------------------
+test.describe('video check (P405)', () => {
+  const FAKE = 'кто прочитает Фатиху четыре раза, получит награду за четыре тысячи дней'
+  const judge = (t: string) => ({ ok: true as const, result: { ...RESULT, verdict: t.includes(FAKE) ? 'fabricated' : 'authentic' } })
+
+  test('helpers: TikTok link, Scribe language codes, a 3-a-day user cap', () => {
+    expect(findTikTokUrl('see https://www.tiktok.com/@a/video/123?lang=ru).')).toBe('https://www.tiktok.com/@a/video/123?lang=ru')
+    expect(findTikTokUrl('https://instagram.com/reel/x')).toBeNull()
+    expect(scribeLang('rus')).toBe('ru'); expect(scribeLang('uzb')).toBe('uz'); expect(scribeLang('tgk')).toBe('tj')
+    expect(scribeLang('ara')).toBe('ar'); expect(scribeLang('deu')).toBeNull(); expect(scribeLang(undefined)).toBeNull()
+    const allow = createUserDailyLimiter(3)
+    const d = new Date(Date.UTC(2026, 10, 11, 9))
+    expect([allow(1, d), allow(1, d), allow(1, d), allow(1, d)]).toEqual([true, true, true, false])
+    expect(allow(2, d)).toBe(true)
+    expect(allow(1, new Date(Date.UTC(2026, 10, 12, 0, 1)))).toBe(true)
+  })
+
+  test('a transcript quoting a fabricated hadith reaches the same verdict as the same text pasted', async () => {
+    const pasted = fakeDeps({ analyze: async (i) => judge(i.postText) })
+    await handleMessage(msg({ text: 'Пророк, мир ему, сказал: ' + FAKE }), pasted.deps)
+    const video = fakeDeps({ analyze: async (i) => { video.analyzed.push(i); return judge(i.postText) } })
+    await handleMessage(msg({ video: { file_id: 'v1', file_size: 3_000_000 } }), video.deps)
+    const verdict = (c: { method: string; body: any }[]) => c.find(x => x.method === 'editMessageText')!.body.text
+    expect(verdict(pasted.calls)).toContain('Выдуманный')
+    expect(verdict(video.calls)).toContain('Выдуманный')
+    expect(video.analyzed[0].postText).toContain('Spoken in the video')
+    expect(video.analyzed[0].lang).toBe('ru')                     // from the transcript
+    expect(verdict(video.calls)).toContain('Что я услышал')      // the transcript is shown
+  })
+
+  test('the caption and the speech both go to the model', async () => {
+    const { deps, analyzed } = fakeDeps()
+    await handleMessage(msg({ video: { file_id: 'v1' }, caption: 'Паёмбар (с) фармуданд: ҳар кӣ пеш аз хоб бихонад' }), deps)
+    expect(analyzed[0].postText).toContain('Caption of the video')
+    expect(analyzed[0].postText).toContain('Spoken in the video')
+    expect(analyzed[0].lang).toBe('tj')                           // the caption decides first
+  })
+
+  test('a video over 20 MB gets "too large", is not downloaded and uses up no check', async () => {
+    let used = 0
+    const { deps, calls, analyzed, downloads } = fakeDeps({ videoUserAllowed: () => { used++; return true } })
+    await handleMessage(msg({ video: { file_id: 'big', file_size: 25 * 1024 * 1024 } }), deps)
+    expect(calls[0].body.text).toContain('больше 20 МБ')
+    expect(downloads).toHaveLength(0); expect(analyzed).toHaveLength(0); expect(used).toBe(0)
+  })
+
+  test('a file Telegram calls too big (size unknown up front) gets the same answer, not a crash', async () => {
+    const { deps, calls, analyzed } = fakeDeps({ downloadMedia: async () => 'too_large' })
+    await handleMessage(msg({ video: { file_id: 'big' } }), deps)
+    expect(calls.at(-1)!.body.text).toContain('больше 20 МБ')
+    expect(analyzed).toHaveLength(0)
+  })
+
+  test('the per-user and the daily video limits answer without downloading', async () => {
+    const a = fakeDeps({ videoUserAllowed: () => false })
+    await handleMessage(msg({ video: { file_id: 'v' } }), a.deps)
+    expect(a.calls[0].body.text).toContain('3 проверки видео')
+    const b = fakeDeps({ videoDailyAllowed: () => false })
+    await handleMessage(msg({ video: { file_id: 'v' } }), b.deps)
+    expect(b.calls[0].body.text).toContain('лимит проверки видео исчерпан')
+    expect(a.downloads.length + b.downloads.length + a.analyzed.length + b.analyzed.length).toBe(0)
+  })
+
+  test('no speech and no caption: says so, no model call', async () => {
+    const { deps, calls, analyzed } = fakeDeps({ transcribe: async () => ({ text: '', languageCode: 'rus' }) })
+    await handleMessage(msg({ animation: { file_id: 'gif' } }), deps)
+    expect(calls.at(-1)!.body.text).toContain('не расслышал речи')
+    expect(analyzed).toHaveLength(0)
+  })
+
+  test('a failed transcription replaces "checking" with the failure message', async () => {
+    const { deps, calls, analyzed } = fakeDeps({ transcribe: async () => null })
+    await handleMessage(msg({ voice: { file_id: 'v' } }), deps)
+    expect(calls.at(-1)!.body.text).toContain('не удалась')
+    expect(analyzed).toHaveLength(0)
+  })
+
+  test('a TikTok link: the caption is checked, and the answer says only the caption was', async () => {
+    const { deps, calls, analyzed } = fakeDeps()
+    await handleMessage(msg({ text: 'https://www.tiktok.com/@a/video/123' }), deps)
+    expect(analyzed[0].postText).toContain('Caption of the TikTok video')
+    const answer = calls.find(c => c.method === 'editMessageText')!.body.text
+    expect(answer).toContain('только подпись к TikTok')
+  })
+
+  test('a TikTok whose caption has no text (or could not be read): honest fallback, no model call', async () => {
+    for (const cap of [null, '#hadith #islam']) {
+      const { deps, calls, analyzed } = fakeDeps({ tiktokCaption: async () => cap })
+      await handleMessage(msg({ text: 'https://vm.tiktok.com/ZMabc/' }), deps)
+      expect(calls.at(-1)!.body.text).toContain('речь по ссылке я не слышу')
+      expect(analyzed).toHaveLength(0)
+    }
+  })
 })
