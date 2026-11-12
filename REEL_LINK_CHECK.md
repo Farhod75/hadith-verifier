@@ -1,7 +1,13 @@
 # Reel link check
 
-**Status 2026-11-11: phase 1 BUILT (P405)** - forwarded videos (speech + caption) and TikTok captions in
-@HadithVerifierBot, by the "Decided" section below. The Plan section is the earlier design, kept for the
+**Status 2026-11-11: phase 1 LIVE (P405, P406)** - a video sent to @HadithVerifierBot is checked by speech
+and caption. TikTok links did NOT work: oEmbed no longer returns the caption (P406), so every video link
+gets "send the file or a screenshot".
+
+**Open decision for the operator:** Scribe can take a TikTok or YouTube URL itself (its `source_url` /
+`cloud_storage_url` field) and fetch the video on ElevenLabs' side. That would check links by speech with no
+scraper of ours - but the video is still downloaded from the platform, which is what "no scraping" ruled
+out. Not built. The Plan section is the earlier design, kept for the
 record: Railway and ffmpeg were dropped because Scribe takes the video file itself. Still open: the link
 field on the site's Analyze tab (step 4), and shared storage for the daily caps (they live in one serverless
 instance's memory).

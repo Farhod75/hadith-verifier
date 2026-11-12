@@ -3,7 +3,7 @@
 // (no server, no network), plus the webhook route refusing anyone without the secret.
 import { test, expect } from '@playwright/test'
 import {
-  LANGS, UI, VERDICT_LABEL, classifyInput, detectPostLang, findTikTokUrl, formatBlocks, langFromTelegram, pack, scribeLang,
+  LANGS, UI, VERDICT_LABEL, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack, scribeLang, videoPostText,
 } from '../lib/telegram-bot'
 import {
   createDailyCounter, createUserDailyLimiter, createUserLimiter, handleMessage, type Deps, type TgMessage,
@@ -53,8 +53,9 @@ test.describe('bot helpers (P398)', () => {
     expect(classifyInput('', false, true)).toBe('video')                       // P405
     expect(classifyInput('Пророк сказал: кто прочитает эту суру', false, true)).toBe('video')
     expect(classifyInput('ok', false, false)).toBe('too_short')
-    expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://www.tiktok.com/@x/video/1', false, false)).toBe('tiktok_link')
-    expect(classifyInput('https://vm.tiktok.com/ZMabc123/', false, false)).toBe('tiktok_link')
+    expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://www.tiktok.com/@x/video/1', false, false)).toBe('text')
+    expect(classifyInput('https://vm.tiktok.com/ZMabc123/', false, false)).toBe('other_link')   // P406
+    expect(classifyInput('https://www.tiktok.com/@sahihhadithreels/video/7703031428207955213?is_from_webapp=1', false, false)).toBe('other_link')
     expect(classifyInput('Смотрите! Пророк сказал: кто прочитает https://youtu.be/abc', false, false)).toBe('text')
   })
 
@@ -119,7 +120,6 @@ function fakeDeps(over: Partial<Deps> = {}) {
     dailyAllowed: () => true,
     downloadMedia: async () => { downloads.push(1); return { bytes: new Uint8Array([1, 2, 3]), fileName: 'file_1.mp4', mimeType: 'video/mp4' } },
     transcribe: async () => ({ text: 'Пророк, мир ему, сказал: кто прочитает Фатиху четыре раза, получит награду за четыре тысячи дней', languageCode: 'rus' }),
-    tiktokCaption: async () => 'Пророк сказал: кто прочитает эту суру семь раз перед сном, тому простятся грехи #hadith',
     videoUserAllowed: () => true,
     videoDailyAllowed: () => true,
     ...over,
@@ -201,14 +201,12 @@ test('/start from an English or unknown app language greets in RU, UZ, TJ and EN
 })
 
 
-// ---- P405: video files and TikTok links (REEL_LINK_CHECK.md) -------------------------
+// ---- P405/P406: video files and video links (REEL_LINK_CHECK.md) ----------------------
 test.describe('video check (P405)', () => {
   const FAKE = 'кто прочитает Фатиху четыре раза, получит награду за четыре тысячи дней'
   const judge = (t: string) => ({ ok: true as const, result: { ...RESULT, verdict: t.includes(FAKE) ? 'fabricated' : 'authentic' } })
 
-  test('helpers: TikTok link, Scribe language codes, a 3-a-day user cap', () => {
-    expect(findTikTokUrl('see https://www.tiktok.com/@a/video/123?lang=ru).')).toBe('https://www.tiktok.com/@a/video/123?lang=ru')
-    expect(findTikTokUrl('https://instagram.com/reel/x')).toBeNull()
+  test('helpers: Scribe language codes, a 3-a-day user cap', () => {
     expect(scribeLang('rus')).toBe('ru'); expect(scribeLang('uzb')).toBe('uz'); expect(scribeLang('tgk')).toBe('tj')
     expect(scribeLang('ara')).toBe('ar'); expect(scribeLang('deu')).toBeNull(); expect(scribeLang(undefined)).toBeNull()
     const allow = createUserDailyLimiter(3)
@@ -278,20 +276,16 @@ test.describe('video check (P405)', () => {
     expect(analyzed).toHaveLength(0)
   })
 
-  test('a TikTok link: the caption is checked, and the answer says only the caption was', async () => {
+  test('a TikTok link gets "send the video itself", no model call (P406: oEmbed has no caption)', async () => {
     const { deps, calls, analyzed } = fakeDeps()
-    await handleMessage(msg({ text: 'https://www.tiktok.com/@a/video/123' }), deps)
-    expect(analyzed[0].postText).toContain('Caption of the TikTok video')
-    const answer = calls.find(c => c.method === 'editMessageText')!.body.text
-    expect(answer).toContain('только подпись к TikTok')
+    await handleMessage(msg({ text: 'https://www.tiktok.com/@sahihhadithreels/video/7703031428207955213?is_from_webapp=1&sender_device=pc' }), deps)
+    expect(analyzed).toHaveLength(0)
+    expect(calls[0].body.text).toContain('Ссылки Instagram, TikTok')
   })
 
-  test('a TikTok whose caption has no text (or could not be read): honest fallback, no model call', async () => {
-    for (const cap of [null, '#hadith #islam']) {
-      const { deps, calls, analyzed } = fakeDeps({ tiktokCaption: async () => cap })
-      await handleMessage(msg({ text: 'https://vm.tiktok.com/ZMabc/' }), deps)
-      expect(calls.at(-1)!.body.text).toContain('речь по ссылке я не слышу')
-      expect(analyzed).toHaveLength(0)
-    }
+  test('the model is told the transcript\'s punctuation and quotes are the recogniser\'s (P406)', () => {
+    const t = videoPostText('', 'Пророк сказал: "Кто не благодарит людей, тот не благодарит Аллаха. Благодари людей".')
+    expect(t).toContain('quotation marks in it were added by the recogniser')
+    expect(t).toContain('do not raise a red flag based on them')
   })
 })

@@ -36,25 +36,18 @@ export function detectPostLang(text: string | null | undefined): BotLang | null 
   return null
 }
 
-const VIDEO_LINK = /https?:\/\/(?:www\.)?(?:instagram\.com|tiktok\.com|vm\.tiktok\.com|youtu\.be|youtube\.com|facebook\.com|fb\.watch)\S*/gi
-const TIKTOK_LINK = /https?:\/\/(?:(?:www|m|vm|vt)\.)?tiktok\.com\/\S+/i
+const VIDEO_LINK = /https?:\/\/(?:www\.)?(?:instagram\.com|tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com|m\.tiktok\.com|youtu\.be|youtube\.com|facebook\.com|fb\.watch)\S*/gi
 export const MIN_TEXT = 10
 
-/** The first TikTok link in the text, or null. PURE. */
-export function findTikTokUrl(text: string | null | undefined): string | null {
-  const m = (text || '').match(TIKTOK_LINK)
-  return m ? m[0].replace(/[)\].,!?»"']+$/, '') : null
-}
-
-// P405: a video FILE is checked in full (speech + caption); a TikTok link by its caption
-// (oEmbed); any other video link gets "send the video itself or a screenshot" - no scraping
-// (REEL_LINK_CHECK.md, operator 2026-11-11).
-export type InputKind = 'image' | 'video' | 'text' | 'tiktok_link' | 'other_link' | 'too_short'
+// P405: a video FILE is checked in full (speech + caption); a bare video link (Instagram,
+// TikTok, YouTube, Facebook) gets "send the video itself or a screenshot" - no scraping
+// (REEL_LINK_CHECK.md, operator 2026-11-11). P406: TikTok's oEmbed no longer returns the
+// caption, so TikTok links went the same way.
+export type InputKind = 'image' | 'video' | 'text' | 'other_link' | 'too_short'
 export function classifyInput(text: string, hasImage: boolean, hasVideo: boolean): InputKind {
   const t = (text || '').trim()
   if (hasImage) return 'image'
   if (hasVideo) return 'video'
-  if (findTikTokUrl(t)) return 'tiktok_link'
   if (t.replace(VIDEO_LINK, '').trim().length >= MIN_TEXT) return 'text'
   if (new RegExp(VIDEO_LINK.source, 'i').test(t)) return 'other_link'
   return 'too_short'
@@ -70,7 +63,9 @@ export function scribeLang(code: string | null | undefined): BotLang | null {
 export function videoPostText(caption: string, transcript: string): string {
   const parts: string[] = []
   if (caption.trim()) parts.push(`Caption of the video:\n${caption.trim()}`)
-  if (transcript.trim()) parts.push(`Spoken in the video (automatic transcript, may contain recognition errors):\n${transcript.trim()}`)
+  // P406: the recogniser adds the punctuation. A model read its guessed closing quote as the
+  // speaker presenting a moral as part of the hadith, and raised a false red flag.
+  if (transcript.trim()) parts.push(`Spoken in the video (automatic speech-to-text transcript; it may contain recognition errors, and ALL punctuation and quotation marks in it were added by the recogniser, so they say nothing about where the speaker's quotation of the hadith begins or ends - do not raise a red flag based on them):\n${transcript.trim()}`)
   return parts.join('\n\n')
 }
 
@@ -104,12 +99,12 @@ export const UI: Record<string, T6> = {
     ar: 'أرسل نص المنشور (جملة على الأقل) أو صورة مع تعليق أو لقطة شاشة.',
   },
   otherLink: {
-    en: 'I can\'t open Instagram, YouTube or Facebook links. Save the video and send it to me as a file (up to 20 MB) - I\'ll check what is said in it - or send a screenshot or the post\'s text.',
-    ru: 'Ссылки Instagram, YouTube и Facebook я открыть не могу. Сохраните видео и пришлите мне файлом (до 20 МБ) - я проверю, что в нём говорится, - или пришлите скриншот или текст поста.',
-    uz: 'Instagram, YouTube ва Facebook ҳаволаларини оча олмайман. Видеони сақлаб, менга файл қилиб юборинг (20 МБ гача) - унда айтилганини текшираман - ёки скриншот ё пост матнини юборинг.',
-    uz_latin: 'Instagram, YouTube va Facebook havolalarini ocha olmayman. Videoni saqlab, menga fayl qilib yuboring (20 MB gacha) - unda aytilganini tekshiraman - yoki skrinshot yo post matnini yuboring.',
-    tj: 'Пайвандҳои Instagram, YouTube ва Facebook-ро кушода наметавонам. Видеоро нигоҳ дошта, ба ман ҳамчун файл фиристед (то 20 МБ) - он чиро, ки дар он гуфта мешавад, месанҷам - ё скриншот ё матни постро фиристед.',
-    ar: 'لا أستطيع فتح روابط إنستغرام أو يوتيوب أو فيسبوك. احفظ الفيديو وأرسله إليّ كملف (حتى 20 ميغابايت) - وسأفحص ما يُقال فيه - أو أرسل لقطة شاشة أو نص المنشور.',
+    en: 'I can\'t open Instagram, TikTok, YouTube or Facebook links. Save the video and send it to me as a file (up to 20 MB) - I\'ll check what is said in it - or send a screenshot or the post\'s text.',
+    ru: 'Ссылки Instagram, TikTok, YouTube и Facebook я открыть не могу. Сохраните видео и пришлите мне файлом (до 20 МБ) - я проверю, что в нём говорится, - или пришлите скриншот или текст поста.',
+    uz: 'Instagram, TikTok, YouTube ва Facebook ҳаволаларини оча олмайман. Видеони сақлаб, менга файл қилиб юборинг (20 МБ гача) - унда айтилганини текшираман - ёки скриншот ё пост матнини юборинг.',
+    uz_latin: 'Instagram, TikTok, YouTube va Facebook havolalarini ocha olmayman. Videoni saqlab, menga fayl qilib yuboring (20 MB gacha) - unda aytilganini tekshiraman - yoki skrinshot yo post matnini yuboring.',
+    tj: 'Пайвандҳои Instagram, TikTok, YouTube ва Facebook-ро кушода наметавонам. Видеоро нигоҳ дошта, ба ман ҳамчун файл фиристед (то 20 МБ) - он чиро, ки дар он гуфта мешавад, месанҷам - ё скриншот ё матни постро фиристед.',
+    ar: 'لا أستطيع فتح روابط إنستغرام أو تيك توك أو يوتيوب أو فيسبوك. احفظ الفيديو وأرسله إليّ كملف (حتى 20 ميغابايت) - وسأفحص ما يُقال فيه - أو أرسل لقطة شاشة أو نص المنشور.',
   },
   videoTooLarge: {
     en: 'This video is over 20 MB - Telegram does not let bots download larger files. Send a shorter clip, a screenshot or the post\'s text.',
@@ -150,22 +145,6 @@ export const UI: Record<string, T6> = {
     uz_latin: 'Eshitganim (avtomatik yozib olingan, xatolar boʻlishi mumkin)',
     tj: 'Он чи шунидам (матни худкор, метавонад хато дошта бошад)',
     ar: 'ما سمعته (تفريغ آلي، قد يحتوي على أخطاء)',
-  },
-  tiktokCaptionOnly: {
-    en: 'Only the TikTok caption was checked, not what is said in the video. To check the speech, save the video and send it to me.',
-    ru: 'Проверена только подпись к TikTok, а не то, что говорится в видео. Чтобы проверить речь, сохраните видео и пришлите мне.',
-    uz: 'Фақат TikTok изоҳи текширилди, видеода айтилгани эмас. Нутқни текшириш учун видеони сақлаб, менга юборинг.',
-    uz_latin: 'Faqat TikTok izohi tekshirildi, videoda aytilgani emas. Nutqni tekshirish uchun videoni saqlab, menga yuboring.',
-    tj: 'Танҳо тавзеҳи TikTok санҷида шуд, на он чи дар видео гуфта мешавад. Барои санҷидани сухан видеоро нигоҳ дошта, ба ман фиристед.',
-    ar: 'تم فحص تعليق تيك توك فقط، لا ما يُقال في الفيديو. لفحص الكلام احفظ الفيديو وأرسله إليّ.',
-  },
-  tiktokEmpty: {
-    en: 'I couldn\'t find hadith text in this TikTok\'s caption, and from a link I can\'t hear the speech. Save the video and send it to me, or send a screenshot.',
-    ru: 'В подписи к этому TikTok нет текста хадиса, а речь по ссылке я не слышу. Сохраните видео и пришлите мне или пришлите скриншот.',
-    uz: 'Бу TikTok изоҳида ҳадис матни топилмади, ҳавола орқали эса нутқни эшита олмайман. Видеони сақлаб, менга юборинг ёки скриншот юборинг.',
-    uz_latin: 'Bu TikTok izohida hadis matni topilmadi, havola orqali esa nutqni eshita olmayman. Videoni saqlab, menga yuboring yoki skrinshot yuboring.',
-    tj: 'Дар тавзеҳи ин TikTok матни ҳадис ёфт нашуд, аз пайванд бошад суханро шунида наметавонам. Видеоро нигоҳ дошта, ба ман фиристед ё скриншот фиристед.',
-    ar: 'لم أجد نص حديث في تعليق هذا المقطع على تيك توك، ولا أستطيع سماع الكلام من رابط. احفظ الفيديو وأرسله إليّ، أو أرسل لقطة شاشة.',
   },
   failed: {
     en: 'The check failed. Please try again in a minute.',

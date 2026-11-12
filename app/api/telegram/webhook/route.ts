@@ -97,25 +97,9 @@ export async function POST(req: NextRequest) {
     const j = await r.json().catch(() => null)
     return j ? { text: String(j.text || ''), languageCode: j.language_code } : null
   }
-  const tiktokCaption = async (url: string) => {
-    const oembed = async (u: string) => {
-      const r = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(8_000) })
-      if (!r.ok) return null
-      const j = await r.json().catch(() => null)
-      return typeof j?.title === 'string' && j.title.trim() ? j.title : null
-    }
-    try {
-      const first = await oembed(url)
-      if (first) return first
-      // a short link (vm./vt.tiktok.com): follow it to the video page and ask again
-      const r = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8_000) })
-      return r.url && r.url !== url ? await oembed(r.url.split('?')[0]) : null
-    } catch (e: any) { console.error('telegram bot: tiktok', e?.message); return null }
-  }
-
   after(() => handleMessage(msg, {
     send, analyze: analyzePost, downloadImage, userAllowed, dailyAllowed,
-    downloadMedia, transcribe, tiktokCaption, videoUserAllowed, videoDailyAllowed,
+    downloadMedia, transcribe, videoUserAllowed, videoDailyAllowed,
   })
     .catch(e => console.error('telegram bot:', e?.message)))
   return NextResponse.json({ ok: true })

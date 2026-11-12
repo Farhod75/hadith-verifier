@@ -7,7 +7,7 @@
 import type { AnalyzeInput, AnalyzeOutcome } from '@/lib/analyze'
 import { rateLimitMessage } from '@/lib/analyze-limit'
 import {
-  type BotLang, MIN_TEXT, classifyInput, detectPostLang, findTikTokUrl, formatBlocks, langFromTelegram, pack, scribeLang,
+  type BotLang, MIN_TEXT, classifyInput, detectPostLang, formatBlocks, langFromTelegram, pack, scribeLang,
   ui, videoPostText, welcomeMulti, welcomeText,
 } from '@/lib/telegram-bot'
 
@@ -30,10 +30,9 @@ export type Deps = {
   downloadImage: (fileId: string) => Promise<{ base64: string; mediaType: string } | null>
   userAllowed: (userId: number) => boolean
   dailyAllowed: () => boolean
-  // P405: video and TikTok links (REEL_LINK_CHECK.md)
+  // P405: video files (REEL_LINK_CHECK.md)
   downloadMedia: (fileId: string) => Promise<Media | 'too_large' | null>
   transcribe: (media: Media) => Promise<{ text: string; languageCode?: string } | null>
-  tiktokCaption: (url: string) => Promise<string | null>
   videoUserAllowed: (userId: number) => boolean
   videoDailyAllowed: () => boolean
 }
@@ -135,7 +134,7 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
     await deps.send('sendChatAction', { chat_id: chatId, action: 'typing' })
     let image: { base64: string; mediaType: string } | null = null
     let postText = text
-    const extra: { transcript?: string; note?: string } = {}
+    const extra: { transcript?: string } = {}
     if (kind === 'image' && imageFile) {
       image = await deps.downloadImage(imageFile)
       if (!image) { await replace({ text: ui('failed', lang) }); return }
@@ -151,15 +150,6 @@ export async function handleMessage(msg: TgMessage, deps: Deps): Promise<void> {
       lang = detectPostLang(text) || detectPostLang(transcript) || scribeLang(heard.languageCode) || appLang
       postText = videoPostText(text, transcript)
       extra.transcript = transcript
-    }
-    if (kind === 'tiktok_link') {
-      const caption = (await deps.tiktokCaption(findTikTokUrl(text)!)) || ''
-      if (caption.replace(/#[^\s#]+|@\w+|https?:\/\/\S+/g, '').trim().length < MIN_TEXT) {
-        await replace({ text: ui('tiktokEmpty', lang) }); return
-      }
-      lang = detectPostLang(caption) || lang
-      postText = `Caption of the TikTok video:\n${caption.trim()}`
-      extra.note = ui('tiktokCaptionOnly', lang)
     }
     const outcome = await deps.analyze({
       postText, lang, imageBase64: image?.base64, imageMediaType: image?.mediaType,

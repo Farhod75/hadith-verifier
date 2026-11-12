@@ -3589,7 +3589,7 @@ no scraping of Instagram / YouTube, 3 video checks per user per day and 30 a day
 - Over 20 MB: answered before download and before any limit is used; a size Telegram reports only at
   `getFile` ("file is too big") gets the same answer.
 - No speech and no caption: says so, no model call.
-- A TikTok link: the caption from TikTok's public oEmbed (a short vm./vt. link is followed once), checked as
+- (Removed by P406.) A TikTok link: the caption from TikTok's public oEmbed (a short vm./vt. link is followed once), checked as
   text, with the line "only the caption was checked". A caption of hashtags only: the honest fallback.
 - Instagram / YouTube / Facebook links: "save the video and send it to me, or a screenshot".
 - Limits in `lib/telegram-handler.ts`: VIDEO_USER_DAILY_CAP 3, VIDEO_BOT_DAILY_CAP 30, on top of the bot's 300.
@@ -3604,7 +3604,36 @@ failed check, which is the right answer for it.
 
 **Tripwire:** a limit that lives in one serverless instance's memory - see Status.
 
-**Status:** BUILT, waiting for the operator: `ELEVENLABS_API_KEY` is not in the HV Vercel project (checked with
-`vercel env ls production`). Known limit: the counters are per instance and reset on a cold start, like the
+**Status:** LIVE 2026-11-11 (aa7f755). The operator added ELEVENLABS_API_KEY (Production); forwarding the RU
+#4811 reel from the channel got a correct transcript and verdict. The TikTok part did NOT work - see P406.
+Known limit: the counters are per instance and reset on a cold start, like the
 existing text caps - a hard 30-a-day needs shared storage (OPEN_ITEMS).
 
+---
+
+## PATTERN 406: TikTok's oEmbed has no caption any more; the transcript's quotes read as evidence
+
+**Date:** 2026-11-11  **Repo:** hadith-verifier  **Severity:** two defects found in the first live test of P405
+
+**What happened.**
+1. Every TikTok link got "I couldn't find hadith text in this TikTok's caption". TikTok's oEmbed now
+   answers 200 with only the player iframe - no `title`, no `author_name` (checked on our own video
+   7703031428207955213 and on TikTok's own documentation example). The embed page is rendered by script and
+   carries no caption either. P405 had checked oEmbed for a 200 and never for the field it needed.
+2. The same #4811 reel, sent twice, got a clean answer once and a red flag the second time: "the second
+   phrase is not an exact quotation". Scribe had put the closing quote after the moral; our draft closes it
+   after "...не благодарит Аллаха" and the moral (M) is outside it. The model read the recogniser's
+   punctuation as the video presenting the moral as hadith.
+
+**Fix.**
+1. No caption without scraping, which the operator ruled out: a TikTok link now gets the same answer as
+   Instagram / YouTube / Facebook ("save the video and send it as a file, or a screenshot"); the oEmbed code
+   and its two strings are removed. vt. and m.tiktok.com links are recognised as video links.
+2. The transcript label sent to the model says all punctuation and quotation marks are the recogniser's and
+   are no basis for a red flag. 2 tests replaced the 2 TikTok ones; 25 in the file.
+
+**Lesson:** test a third-party endpoint for the field you will read, not for its status code.
+
+**Tripwire:** a probe whose only assertion is HTTP 200.
+
+**Status:** FIXED
