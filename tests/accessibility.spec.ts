@@ -171,7 +171,7 @@ test.describe('Accessibility — Mobile viewport', () => {
   test('touch targets should be visible on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/')
-    const analyzeBtn = page.locator('button.bg-emerald-700').first()
+    const analyzeBtn = page.getByTestId('analyze-button')
     await expect(analyzeBtn).toBeVisible()
     const box = await analyzeBtn.boundingBox()
     expect(box?.height).toBeGreaterThanOrEqual(36)

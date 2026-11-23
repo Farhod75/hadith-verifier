@@ -80,6 +80,7 @@ export default function Home() {
   const [tab, setTab]                   = useState<Tab>('analyze')
   const [replyLang, setReplyLang]       = useState<ReplyLang>('en')
   const [postText, setPostText]         = useState('')
+  const [emptyTry, setEmptyTry]         = useState(false)
   const [image, setImage]               = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState('')
   const [loading, setLoading]           = useState(false)
@@ -201,7 +202,8 @@ export default function Home() {
   }
 
   async function analyze() {
-    if (!postText.trim() && !image) return
+    if (!postText.trim() && !image) { setEmptyTry(true); return }
+    setEmptyTry(false)
     setLoading(true); setResult(null)
     try {
       let res
@@ -324,7 +326,7 @@ export default function Home() {
             { key: 'search',  label: `🔍 ${tr.tabSearch || 'Search'}` },
           ] as { key: Tab; label: string }[]).map(({ key, label }) => (
             <button key={key} onClick={() => setTab(key)}
-              className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === key ? 'border-emerald-600 text-emerald-700 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors ${tab === key ? 'border-emerald-600 text-emerald-700 font-semibold' : 'border-transparent text-gray-600 hover:text-emerald-700'}`}>
               {label}
             </button>
           ))}
@@ -333,24 +335,26 @@ export default function Home() {
         {/* ANALYZE TAB */}
         {tab === 'analyze' && (
           <div className="space-y-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-sm text-gray-700" dir="auto">{tr.intro}</p>
+            <div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-4">
               <div className="flex gap-2 mb-3">
                 <button onClick={() => { setImage(null); setImagePreview('') }}
-                  className={`text-xs px-3 py-1.5 rounded-lg border ${!imagePreview ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-500'}`}>
+                  className={`text-xs px-3 py-1.5 rounded-lg border ${!imagePreview ? 'bg-emerald-600 border-emerald-600 text-white font-medium' : 'border-gray-300 text-gray-600'}`}>
                   {tr.pasteText}
                 </button>
                 <button onClick={() => fileInputRef.current?.click()}
-                  className={`text-xs px-3 py-1.5 rounded-lg border ${imagePreview ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-medium' : 'border-gray-200 text-gray-500'}`}>
+                  className={`text-xs px-3 py-1.5 rounded-lg border ${imagePreview ? 'bg-emerald-600 border-emerald-600 text-white font-medium' : 'border-gray-300 text-gray-600'}`}>
                   {tr.uploadScreenshot}
                 </button>
               </div>
               {!imagePreview ? (
                 <>
                   <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{tr.pastePostContent}</div>
-                  <textarea value={postText} onChange={e => setPostText(e.target.value)}
+                  <textarea value={postText} onChange={e => { setPostText(e.target.value); setEmptyTry(false) }}
                     placeholder={tr.postPlaceholder}
-                    className="w-full min-h-28 text-sm border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-500 bg-gray-50"
+                    className={`w-full min-h-28 text-sm border-2 rounded-lg p-3 resize-y focus:outline-none focus:border-emerald-600 bg-white placeholder:text-gray-500 ${emptyTry ? 'border-red-400' : 'border-emerald-200'}`}
                     dir="auto" />
+                  {emptyTry && <p data-testid="empty-hint" className="text-xs text-red-600 mt-1" dir="auto">{tr.emptyHint}</p>}
                   <div className="mt-2">
                     <SpeechInput lang={replyLang === 'uz' ? 'uz' : replyLang === 'ru' ? 'ru' : replyLang === 'ar' ? 'ar' : 'en'} disabled={loading}
                       onTranscript={async (transcript) => {
@@ -377,9 +381,9 @@ export default function Home() {
                   </div>
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
                     <span className="text-xs text-gray-400">{tr.tryLabel}</span>
-                    <button onClick={() => setPostText(EXAMPLES.uz)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleFabricated}</button>
-                    <button onClick={() => setPostText(EXAMPLES.chain)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleChain}</button>
-                    <button onClick={() => setPostText(EXAMPLES.authentic)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleAuthentic}</button>
+                    <button onClick={() => setPostText(EXAMPLES.uz)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleFabricated}</button>
+                    <button onClick={() => setPostText(EXAMPLES.chain)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleChain}</button>
+                    <button onClick={() => setPostText(EXAMPLES.authentic)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleAuthentic}</button>
                   </div>
                 </>
               ) : (
@@ -394,8 +398,8 @@ export default function Home() {
                 aria-label="Upload screenshot for analysis" aria-hidden="true"
                 onChange={e => { if (e.target.files?.[0]) handleImageSelect(e.target.files[0]) }} />
               <div className="flex gap-2 mt-3 items-center flex-wrap">
-                <button onClick={analyze} disabled={loading || (!postText.trim() && !image)}
-                  className="bg-emerald-700 text-white text-sm px-5 py-2 rounded-lg font-medium hover:bg-emerald-800 disabled:opacity-40 flex items-center gap-2">
+                <button data-testid="analyze-button" onClick={analyze} disabled={loading}
+                  className="bg-emerald-600 text-white text-sm px-6 py-2.5 rounded-lg font-semibold shadow-sm hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2">
                   {loading
                     ? <><span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />{image ? tr.readingImage : tr.analyzing}</>
                     : image ? tr.analyzeScreenshot : tr.analyzePost}
@@ -406,7 +410,7 @@ export default function Home() {
                   <span className="text-xs text-gray-400 mr-1">{tr.replyIn}</span>
                   {(['en', 'uz', 'ar', 'ru', 'tj'] as ReplyLang[]).map(l => (
                     <button key={l} onClick={() => setReplyLang(l)}
-                      className={`text-xs px-3 py-1 rounded-full border ${replyLang === l ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'border-gray-200 text-gray-500'}`}>
+                      className={`text-xs px-3 py-1 rounded-full border ${replyLang === l ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-300 text-gray-600'}`}>
                       {l.toUpperCase()}
                     </button>
                   ))}
@@ -519,9 +523,9 @@ export default function Home() {
                   </div>
                   <div className="flex gap-2 mt-2 flex-wrap items-center">
                     <span className="text-xs text-gray-400">{tr.tryLabel}</span>
-                    <button onClick={() => setDuaText(DUA_EXAMPLES.wrong)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleWrongOrder}</button>
-                    <button onClick={() => setDuaText(DUA_EXAMPLES.arabic_only)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleArabicOnly}</button>
-                    <button onClick={() => setDuaText(DUA_EXAMPLES.transliteration)} className="text-xs px-3 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50">{tr.exampleTransliteration}</button>
+                    <button onClick={() => setDuaText(DUA_EXAMPLES.wrong)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleWrongOrder}</button>
+                    <button onClick={() => setDuaText(DUA_EXAMPLES.arabic_only)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleArabicOnly}</button>
+                    <button onClick={() => setDuaText(DUA_EXAMPLES.transliteration)} className="text-xs px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100">{tr.exampleTransliteration}</button>
                   </div>
                 </>
               ) : (

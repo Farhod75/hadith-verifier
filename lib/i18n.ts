@@ -36,6 +36,8 @@ export type Translations = {
   uploadScreenshot: string
   pastePostContent: string
   postPlaceholder: string
+  intro: string
+  emptyHint: string
   dragDrop: string
   tryLabel: string
   exampleFabricated: string
@@ -153,6 +155,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'Upload screenshot',
     pastePostContent: 'Paste post content',
     postPlaceholder: 'Paste Facebook, Instagram, or WhatsApp post text — any language (Uzbek, Arabic, Russian, English...)',
+    intro: 'Paste a post or upload a screenshot — we check whether the hadith in it is authentic and give you a ready reply.',
+    emptyHint: 'Paste the post text or upload a screenshot first.',
     dragDrop: 'Or drag & drop a screenshot · Click to browse',
     tryLabel: 'Try:',
     exampleFabricated: 'Fabricated (Uzbek)',
@@ -252,6 +256,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'Skrinshot yuklang',
     pastePostContent: 'Post matnini joylashtiring',
     postPlaceholder: "Facebook, Instagram yoki WhatsApp post matnini joylashtiring — istalgan tilda (o'zbekcha, arabcha, ruscha, inglizcha...)",
+    intro: 'Postni joylashtiring yoki skrinshot yuklang — undagi hadis sahihmi, tekshiramiz va tayyor javob beramiz.',
+    emptyHint: 'Avval post matnini joylashtiring yoki skrinshot yuklang.',
     dragDrop: "Yoki skrinshotni shu yerga tashlang · Ko'rish uchun bosing",
     tryLabel: "Sinab ko'ring:",
     exampleFabricated: "Uydirma (o'zbekcha)",
@@ -351,6 +357,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'Скриншот юкланг',
     pastePostContent: 'Пост матнини жойлаштиринг',
     postPlaceholder: 'Facebook, Instagram ёки WhatsApp пост матнини жойлаштиринг — исталган тилда (Ўзбекча, арабча, русча, инглизча...)',
+    intro: 'Постни жойлаштиринг ёки скриншот юкланг — ундаги ҳадис саҳиҳми, текширамиз ва тайёр жавоб берамиз.',
+    emptyHint: 'Аввал пост матнини жойлаштиринг ёки скриншот юкланг.',
     dragDrop: 'Ёки скриншотни шу ерга ташланг · Кўриш учун босинг',
     tryLabel: 'Синаб кўринг:',
     exampleFabricated: 'Уйдирма (ўзбекча)',
@@ -450,6 +458,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'Загрузить скриншот',
     pastePostContent: 'Вставьте текст поста',
     postPlaceholder: 'Вставьте текст поста из Facebook, Instagram или WhatsApp — на любом языке (узбекский, арабский, русский, английский...)',
+    intro: 'Вставьте пост или загрузите скриншот — проверим, достоверен ли хадис, и дадим готовый ответ.',
+    emptyHint: 'Сначала вставьте текст поста или загрузите скриншот.',
     dragDrop: 'Или перетащите скриншот сюда · Нажмите для выбора файла',
     tryLabel: 'Попробуйте:',
     exampleFabricated: 'Выдуманный (узбекский)',
@@ -549,6 +559,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'رفع لقطة شاشة',
     pastePostContent: 'الصق محتوى المنشور',
     postPlaceholder: 'الصق نص المنشور من فيسبوك أو إنستغرام أو واتساب — بأي لغة (أوزبكية، عربية، روسية، إنجليزية...)',
+    intro: 'الصق المنشور أو ارفع لقطة شاشة — نتحقق من صحة الحديث ونقدّم لك ردًّا جاهزًا.',
+    emptyHint: 'الصق نص المنشور أو ارفع لقطة شاشة أولًا.',
     dragDrop: 'أو اسحب وأفلت لقطة الشاشة هنا · انقر للتصفح',
     tryLabel: 'جرِّب:',
     exampleFabricated: 'موضوع (أوزبكي)',
@@ -648,6 +660,8 @@ const translations: Record<AppLang, Translations> = {
     uploadScreenshot: 'Скриншот бор кунед',
     pastePostContent: 'Матни паёмро ҷойгир кунед',
     postPlaceholder: 'Матни паёми Facebook, Instagram ё WhatsApp-ро ҷойгир кунед — ба ҳар забон (тоҷикӣ, арабӣ, русӣ, англисӣ...)',
+    intro: 'Паёмро гузоред ё скриншот бор кунед — месанҷем, ки ҳадис саҳеҳ аст ё не, ва ҷавоби тайёр медиҳем.',
+    emptyHint: 'Аввал матни паёмро гузоред ё скриншот бор кунед.',
     dragDrop: 'Ё скриншотро ин ҷо кашед · Барои интихоб клик кунед',
     tryLabel: 'Санҷед:',
     exampleFabricated: 'Сохта (ӯзбекӣ)',

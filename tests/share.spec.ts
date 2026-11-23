@@ -47,7 +47,7 @@ test.describe('PWA and the Share menu (P396)', () => {
     await page.route('**/api/analyze', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RESULT) }))
     await page.goto('/')
     await page.locator('textarea').first().fill('The Prophet said whoever reads Fatiha 4 times gets 4000 days of charity')
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     await expect(page.getByTestId('not-fatwa')).toHaveText(/not a fatwa/i)
   })
 
@@ -56,7 +56,7 @@ test.describe('PWA and the Share menu (P396)', () => {
     page.on('dialog', d => d.dismiss())
     await page.goto('/')
     await page.locator('textarea').first().fill('The Prophet said whoever reads Fatiha 4 times gets 4000 days of charity')
-    const button = page.locator('button.bg-emerald-700').first()
+    const button = page.getByTestId('analyze-button')
     await button.click()
     await expect(button).toBeEnabled({ timeout: 5000 })
   })

@@ -3666,3 +3666,25 @@ so the operator's "30 videos a day, I pay for every one" was not a hard 30.
 
 **Status:** FIXED. Migration run 2026-11-12 01:03 (self-test true, true, false); through the API with the
 service key: cap 1 -> true then false; the anon key -> 401. Deployed d9e928c.
+
+## PATTERN 431: the main button looked dead, so the site looked broken
+
+**Date:** 2026-11-23  **Repo:** hadith-verifier  **Severity:** UX (first-visit trust)
+
+**What happened.** The operator saw on his phone what new visitors see: the "Analyze post" button disabled at
+40% opacity until text is pasted, pale grey-green toggles and a grey textarea. Nothing on the first screen looked
+active, and he judged that many visitors take the app for one that does not work.
+
+**Fix.** app/page.tsx: the button is never disabled for an empty field - pressing it marks the field red and shows
+`emptyHint` (data-testid="empty-hint"); it is disabled only while loading. Solid emerald for the button, the active
+paste/upload toggle and the active reply language; a 2px emerald border on the textarea and the card; darker
+placeholder; example chips tinted. One line above the form says what the site does (`intro`). lib/i18n.ts: `intro`
+and `emptyHint` in all six interface languages. Checked at 400x860 on localhost: the hint shows, then clears on typing. The e2e specs found the button by its colour class (button.bg-emerald-700) and broke on the restyle; they now use data-testid="analyze-button", and a new test covers the empty hint.
+
+**Lesson:** a disabled primary button on an empty form reads as a broken page; let it answer instead.
+
+**Tripwire:** a primary action styled with disabled:opacity on the first screen.
+
+**Status:** FIXED
+
+---

@@ -48,7 +48,7 @@ async function mockAnalyzeAndNavigate(page: Page, lang = 'en') {
   )
   await page.goto(BASE_URL)
   await page.locator('textarea').first().fill('Test hadith text for TTS testing')
-  await page.locator('button.bg-emerald-700').first().click()
+  await page.getByTestId('analyze-button').click()
   await page.waitForSelector('text=/verified sources/i', { timeout: 15000 })
 }
 

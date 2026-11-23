@@ -88,10 +88,20 @@ async function getCommentText(page: Page): Promise<string> {
 // UI — no API needed
 // ═════════════════════════════════════════════════════════════════════════════
 test.describe('UI — Page loads correctly', () => {
+  test('empty analyze shows a hint instead of a dead button (P431)', async ({ page }) => {
+    await page.goto('/')
+    const btn = page.getByTestId('analyze-button')
+    await expect(btn).toBeEnabled()
+    await btn.click()
+    await expect(page.getByTestId('empty-hint')).toBeVisible()
+    await page.locator('textarea').first().fill('x')
+    await expect(page.getByTestId('empty-hint')).toHaveCount(0)
+  })
+
   test('should display header and tabs', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByText('Hadith Verifier').first()).toBeVisible()
-    await expect(page.locator('button.bg-emerald-700').first()).toBeVisible()
+    await expect(page.getByTestId('analyze-button')).toBeVisible()
   })
 
   test('should show stats in header', async ({ page }) => {
@@ -147,7 +157,7 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
     await mockAnalyze(page, 'en')
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     await page.waitForSelector('text=/fabricated/i', { timeout: 15000 })
     await expect(page.locator('text=/fabricated/i').first()).toBeVisible()
   })
@@ -156,7 +166,7 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
     await mockAnalyze(page, 'en')
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     await page.waitForSelector('text=/verified sources/i', { timeout: 15000 })
     await expect(page.getByText(/verified sources/i)).toBeVisible()
   })
@@ -165,7 +175,7 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
     await mockAnalyze(page, 'en')            // the mock still carries a seerah_context string
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     await page.waitForSelector('text=/verified sources/i', { timeout: 15000 })
     await expect(page.getByText(/story behind/i)).toHaveCount(0)
     await expect(page.getByText(/Ar-Raheeq/i)).toHaveCount(0)
@@ -175,7 +185,7 @@ test.describe('UI — Analysis flow (CT-GenAI)', () => {
     await mockAnalyze(page, 'en')
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.chain_message)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     const text = await getCommentText(page)
     expect(text).not.toMatch(/^__.*__$/)
     expect(text.length).toBeGreaterThan(20)
@@ -192,7 +202,7 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'UZ' }).click()
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     const text = await getCommentText(page)
     expect(text).not.toMatch(/^__.*__$/)
     expect(text.length).toBeGreaterThan(10)
@@ -204,7 +214,7 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'AR' }).click()
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     const text = await getCommentText(page)
     expect(text).not.toMatch(/^__.*__$/)
     expect(text.length).toBeGreaterThan(10)
@@ -216,7 +226,7 @@ test.describe('Language switching (CT-GenAI)', () => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
     await page.locator('text=Reply in:').locator('..').getByRole('button', { name: 'RU' }).click()
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     const text = await getCommentText(page)
     expect(text).not.toMatch(/^__.*__$/)
     expect(text.length).toBeGreaterThan(10)
@@ -235,7 +245,7 @@ test.describe('AI — Real API validation @real-api', () => {
   test('@real-api should provide real URLs from valid sources', async ({ page }) => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.uzbek)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     await page.waitForSelector('text=/verified sources/i', { timeout: 110000 })
     const sourceLinks = page.locator('main').first().locator('a[href^="https://"]')
     const count = await sourceLinks.count()
@@ -253,7 +263,7 @@ test.describe('AI — Real API validation @real-api', () => {
   test('@real-api should generate non-empty comment in English', async ({ page }) => {
     await page.goto('/')
     await page.locator('textarea').first().fill(FABRICATED_POSTS.chain_message)
-    await page.locator('button.bg-emerald-700').first().click()
+    await page.getByTestId('analyze-button').click()
     const text = await getCommentText(page)
     expect(text.length).toBeGreaterThan(50)
     expect(text).not.toContain('undefined')
